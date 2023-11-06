@@ -13,10 +13,12 @@ from pinocchio.utils import rotate
 
 #These parameters can be edited
 USE_MESHCAT = True # part 1 uses meshcat
-USE_PYBULLET = not USE_MESHCAT # the second part of the lab will use pybullet
+USE_PYBULLET = True # the second part of the lab will use pybullet
 MESHCAT_URL ="tcp://127.0.0.1:6000"
+USE_PYBULLET_GUI = USE_PYBULLET and True
+USE_PYBULLET_REALTIME = USE_PYBULLET and False
 
-DT = 1e-2 #simulation tick time (s)
+DT = 1e-3 #simulation tick time (s)
 EPSILON = 1e-3 #almost 0
 
 #the remaining variables should not be edited in theory
@@ -32,7 +34,7 @@ ROBOT_PLACEMENT= pin.XYZQUATToSE3(np.array([0.,0.,0.85,0.,0.,0.,1.]))
 TABLE_PLACEMENT= pin.SE3(rotate('z',-np.pi/2),np.array([0.8,0.,0.]))
 OBSTACLE_PLACEMENT= pin.SE3(rotate('z',0),np.array([0.43,-0.1,0.94]))
 CUBE_PLACEMENT = pin.SE3(rotate('z', 0.),np.array([0.33, -0.3, 0.93]))
-CUBE_PLACEMENT_TARGET= pin.SE3(rotate('z', 0),np.array([0.4, 0.1, 0.93]))
+CUBE_PLACEMENT_TARGET= pin.SE3(rotate('z', 0),np.array([0.4, 0.11, 0.93]))
 
 #do not edit this part unless you know what you are doing
 MODELS_PATH = join(dirname(str(abspath(__file__))), "models") 
