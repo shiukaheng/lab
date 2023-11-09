@@ -34,6 +34,12 @@ def collision(robot, q):
      
      return pin.computeCollisions(robot.collision_model,robot.collision_data,False)
     
+def collision_continuous(robot, q):
+    '''Return true if in collision, false otherwise.'''
+    pairs = [i for i, pair in enumerate(robot.collision_model.collisionPairs)]
+    dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]
+    return np.mean(dists)
+
 def distanceToObstacle(robot, q):
       '''Return the shortest distance between robot and the obstacle. '''
       geomidobs = robot.collision_model.getGeometryId('obstaclebase_0')
