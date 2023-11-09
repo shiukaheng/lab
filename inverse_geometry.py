@@ -40,7 +40,13 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         oMr = robot.data.oMf[robot.model.getFrameId(RIGHT_HAND)]
         oMhl = getcubeplacement(cube, LEFT_HOOK)
         oMhr = getcubeplacement(cube, RIGHT_HOOK)
-        dist = norm(oMl.translation - oMhl.translation) + norm(oMr.translation - oMhr.translation) + norm(oMl.rotation - oMhl.rotation) + norm(oMr.rotation - oMhr.rotation)
+        oMcube = getcubeplacement(cube)
+
+        inflationRadius = 0
+        # We calculate oMhr and oMhl but with an inflation radius wrt the cube origin
+        oMhl_inflated_translation = oMhl.translation - (oMcube.translation - oMhl.translation) / norm(oMcube.translation - oMhl.translation) * inflationRadius
+        oMhr_inflated_translation = oMhr.translation - (oMcube.translation - oMhr.translation) / norm(oMcube.translation - oMhr.translation) * inflationRadius
+        dist = norm(oMl.translation - oMhl_inflated_translation) + norm(oMr.translation - oMhr_inflated_translation) + norm(oMl.rotation - oMhl.rotation) + norm(oMr.rotation - oMhr.rotation)
         
         joints = jointlimitscost(robot, q)
         cost = dist + joints
@@ -61,8 +67,8 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         return dq * 10000
 
     # Now we optimize the cost function
-    # res = fmin_slsqp(cost, qcurrent, callback=callback, acc=1e-6, iter=100, f_ieqcons=constraint_ineq, iprint=0)
-    res = fmin_bfgs(cost, qcurrent, callback=callback, disp=False)
+    res = fmin_slsqp(cost, qcurrent, callback=callback, acc=1e-6, iter=100, f_ieqcons=constraint_ineq, iprint=0)
+    # res = fmin_bfgs(cost, qcurrent, callback=callback, disp=False)
     # q = res.x # The result of the optimization
     
     evaluate_pose(robot, res)
@@ -73,7 +79,7 @@ def generate_cube_pos():
     # X in [-1, 1]
     # Y in [-1, 1]
     # Z in [0.5, 1]
-    x = np.random.uniform(-0.5, 0.5)
+    x = np.random.uniform(0.1, 0.5)
     y = np.random.uniform(-0.5, 0.5)
     z = np.random.uniform(0.9, 1.1)
     return pin.SE3(rotate('z', 0.),np.array([x, y, z]))
@@ -102,7 +108,7 @@ if __name__ == "__main__":
     while True:
         cubetarget = generate_cube_pos()
         q0,successinit = computeqgrasppose(robot, q, cube, cubetarget, viz)
-        # time.sleep(1)
+        time.sleep(1)
 
     updatevisuals(viz, robot, cube, q0)
     

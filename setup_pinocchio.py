@@ -51,7 +51,7 @@ def loadobject(parentrobot, urdf,mesh, oMf):
 
 
 def finalisecollisionsetup(robot):
-    robot.collision_data = robot.collision_model.createData()
+    robot.collision_data = robot.collision_model.createData() 
     robot.collision_model.addAllCollisionPairs()    
     # Remove collision pairs per SRDF
     pin.removeCollisionPairs(robot.model, robot.collision_model, NEXTAGE_SRDF, False)
