@@ -21,15 +21,34 @@ from scipy.optimize import fmin_slsqp, fmin_bfgs, fmin
 import time
 from pinocchio.utils import rotate
 
-def effector_distance_cost(robot, cube):
+def effector_distance_cost(robot, cube, inflationRadius=0.005):
     # Calculate the distance cost from the effectors to the cube hooks
     oMl = robot.data.oMf[robot.model.getFrameId(LEFT_HAND)]  # Assuming 'left_hand' is the correct frame name
     oMr = robot.data.oMf[robot.model.getFrameId(RIGHT_HAND)]  # Assuming 'right_hand' is the correct frame name
     oMhl = getcubeplacement(cube, LEFT_HOOK)  # Assuming 'left_hook' is the correct frame name
     oMhr = getcubeplacement(cube, RIGHT_HOOK)  # Assuming 'right_hook' is the correct frame name
-    dist_l = np.linalg.norm(oMl.translation - oMhl.translation) ** 2 + np.linalg.norm(oMl.rotation - oMhl.rotation) ** 2
-    dist_r = np.linalg.norm(oMr.translation - oMhr.translation) ** 2 + np.linalg.norm(oMr.rotation - oMhr.rotation) ** 2
-    return dist_l ** 2 + dist_r ** 2
+    oMcube = getcubeplacement(cube)
+
+    # Calculate the direction vectors from the cube to the hooks
+    direction_l = oMhl.translation - oMcube.translation
+    direction_r = oMhr.translation - oMcube.translation
+
+    # Normalize the direction vectors
+    norm_l = np.linalg.norm(direction_l)
+    norm_r = np.linalg.norm(direction_r)
+    direction_l = direction_l / norm_l if norm_l > 0 else direction_l
+    direction_r = direction_r / norm_r if norm_r > 0 else direction_r
+
+    # Apply the inflation radius to shift the hooks' positions outwards
+    oMhl_inflated_translation = oMhl.translation + direction_l * inflationRadius
+    oMhr_inflated_translation = oMhr.translation + direction_r * inflationRadius
+
+    # Calculate the squared distances including the inflation
+    dist_l = np.linalg.norm(oMl.translation - oMhl_inflated_translation) ** 2 + np.linalg.norm(oMl.rotation - oMhl.rotation) ** 2
+    dist_r = np.linalg.norm(oMr.translation - oMhr_inflated_translation) ** 2 + np.linalg.norm(oMr.rotation - oMhr.rotation) ** 2
+
+    # Return the sum of the squared distances
+    return dist_l + dist_r
 
 def distanceToObstacle(robot, q):
     '''Return the shortest distance between robot and the obstacle. '''
@@ -67,7 +86,14 @@ def forcefield(distance, threshold=0.1, multiplier=10):
 
 def success(robot, cube, q):
     # No collisions, no joint limits violated, and the cube is grasped (cost < 0.1)
-    return not collision(robot, q) and not jointlimitsviolated(robot, q) and effector_distance_cost(robot, cube) < 0.05
+    collision_ok = not collision(robot, q)
+    joint_limits_ok = not jointlimitsviolated(robot, q)
+    effector_distance_ok = effector_distance_cost(robot, cube) < 0.05
+    issue = ""
+    if not (collision_ok and joint_limits_ok and effector_distance_ok):
+        issue = f"Collision: {'✅' if collision_ok else '❌'}, Joint Limits: {'✅' if joint_limits_ok else '❌'}, Effector Distance Cost: {'✅' if effector_distance_ok else '❌'}, Colliding Pairs: {get_colliding_pairs(robot, q)}"
+
+    return collision_ok and joint_limits_ok and effector_distance_ok, issue
 
 def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     '''Return a collision free configuration grasping a cube at a specific location and a success flag'''
@@ -81,15 +107,18 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     setcubeplacement(robot, cube, cubetarget)
     pin.updateFramePlacements(cube.model, cube.data)
 
-    def cost(q):
+    def initial_cost(q):
+        pin.framesForwardKinematics(robot.model, robot.data, q)
+        return effector_distance_cost(robot, cube)
+
+    def refinement_cost(q):
         pin.framesForwardKinematics(robot.model, robot.data, q) # Update the robot data
         dist = effector_distance_cost(robot, cube)
         self_collision = selfCollisionDistance(robot, q)
         joints = jointlimitscost(robot, q)
         dist_to_obstacle = distanceToObstacle(robot, q)
         weird_posture = weirdPostureCost(robot, q)
-        # return dist * 50 + forcefield(dist_to_obstacle, 0.01, 1) + joints + weird_posture * 0.01
-        return dist
+        return dist * 50 + forcefield(dist_to_obstacle, 0.01, 1) + joints + weird_posture * 0.01 + forcefield(self_collision, 0.01, 1)
 
     def callback(q):
         if viz is not None:
@@ -107,23 +136,45 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     # Now we optimize the cost function
     # res = fmin_slsqp(cost, qcurrent, callback=callback, acc=1e-6, iter=100, f_ieqcons=constraint_ineq, iprint=0)
 
-    # Create zero array called "noise" shape of qcurrent
-    noise = np.zeros(qcurrent.shape)
-    res = None
+    # First we make a relaxed optimization to get close to the solution
+    print("💭 Relaxed optimization")
+    approx = fmin_bfgs(initial_cost, qcurrent, callback=callback, disp=False)
+    # We check if the relaxed optimization is a success
+    s, iss = success(robot, cube, approx)
+    if s:
+        print("✅ Relaxed optimization success")
+        return approx, True
+    else:
+        print("🪄 Relaxed optimization failed, refining solution")
+
+    old_cost = initial_cost(approx)
+    refined_draft = approx
+    refined_success = False
     for i in range(10):
-        res = fmin_bfgs(cost, qcurrent + noise, callback=callback, disp=False)
-        if success(robot, cube, res):
+        print(f"🪄 Refinement {i+1}/10: {iss}")
+        noise = np.random.normal(0, 0.5, qcurrent.shape)
+        new_refined = fmin_bfgs(refinement_cost, refined_draft + noise, callback=callback, disp=False)
+        new_cost = refinement_cost(new_refined)
+        s, iss = success(robot, cube, new_refined)
+        if s:
+            print(f"🪄 Refinement {i+1}/10: {i}")
+            print("✅ Refinement success")
+            refined_success = True
             break
-        # Add noise to qcurrent with mean 0 and std 1
-        noise = np.random.normal(0, 0.2, qcurrent.shape)
-        print(f"Failed to find a solution, trying again ({i+1}/10)")
-    
-    col, joints, _, _ = evaluate_pose(robot, res, cube, printEval=False)
-    return res, not (col or joints)
+        if new_cost < old_cost:
+            # print("Refinement failed, but better than before")
+            refined_draft = new_refined
+            old_cost = new_cost
+
+    if refined_success:
+        return new_refined, True
+    else:
+        print("❌ Refinement failed")
+        return refined_draft, False
 
 def generate_cube_pos():
     x = np.random.uniform(0.3, 0.5)
-    y = np.random.uniform(-0.5, 0.5)
+    y = np.random.uniform(-0.4, 0.4)
     z = np.random.uniform(0.9, 1.1)
     return pin.SE3(rotate('z', 0.),np.array([x, y, z]))
 
@@ -153,8 +204,11 @@ def test_implementation(iters=50, seed=42, interactive=False):
     print(f"Running {iters} tests")
     for i in range(iters):
         cubetarget = generate_cube_pos()
+        print("=====================================")
         print(f"Test {i+1}/{iters}: {cubetarget.translation}")
         res, success = computeqgrasppose(robot, q, cube, cubetarget, viz)
+        print("=====================================")
+        print()
         col, joints, jlc, edc = evaluate_pose(robot, res, cube, printEval=False)
         colliding_pairs = get_colliding_pairs(robot, res)
         tests.append((cubetarget, res, col, joints, colliding_pairs, jlc, edc))
