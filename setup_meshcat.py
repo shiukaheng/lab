@@ -43,7 +43,7 @@ def setupmeshcat(robot, url=MESHCAT_URL):
         viz.applyConfiguration('target', CUBE_PLACEMENT_TARGET)
         viz.loadViewerModel()     
         viz.display(robot.q0)
-        viz.displayCollisions(False)
+        viz.displayCollisions(True)
         viz.displayVisuals(True)
         addframes(viz)
         return viz
