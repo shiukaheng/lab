@@ -1,34 +1,6 @@
 from typing import Optional, List
 import numpy as np
 
-# class KDTreeNode:
-#     def __init__(self, point: np.ndarray, left, right):
-#         self.point = point
-
-# class KDTree:
-#     def __init__(self, dimensions: int, node_class = KDTreeNode):
-#         self.root = None
-#         self.dimensions = dimensions
-#         self.node_class = node_class
-#         self.nodes = []
-
-#     def insert(self, point: np.ndarray) -> KDTreeNode:
-#         self.nodes.append(self.node_class(point))
-#         return self.nodes[-1]
-
-#     def nearest_neighbor(self, query_point: np.ndarray) -> Optional[KDTreeNode]:
-#         closest_point = None
-#         closest_distance = float('inf')
-#         for node in self.nodes:
-#             dist = np.linalg.norm(node.point - query_point)
-#             if dist < closest_distance:
-#                 closest_distance = dist
-#                 closest_point = node
-#         return closest_point
-    
-#     def query_spheroid(self, center: np.ndarray, radius: float) -> List[KDTreeNode]:
-#         return [node for node in self.nodes if np.linalg.norm(node.point - center) <= radius]
-
 class KDTreeNode:
     def __init__(self, point: np.ndarray, left: Optional['KDTreeNode'] = None, right: Optional['KDTreeNode'] = None):
         self.point = point
@@ -114,3 +86,33 @@ class KDTree:
             return results
 
         return _query(self.root, center, radius, 0)
+    
+# Dummy implementation using a list to test for consistency:
+    
+# class KDTreeNode:
+#     def __init__(self, point: np.ndarray, left, right):
+#         self.point = point
+
+# class KDTree:
+#     def __init__(self, dimensions: int, node_class = KDTreeNode):
+#         self.root = None
+#         self.dimensions = dimensions
+#         self.node_class = node_class
+#         self.nodes = []
+
+#     def insert(self, point: np.ndarray) -> KDTreeNode:
+#         self.nodes.append(self.node_class(point))
+#         return self.nodes[-1]
+
+#     def nearest_neighbor(self, query_point: np.ndarray) -> Optional[KDTreeNode]:
+#         closest_point = None
+#         closest_distance = float('inf')
+#         for node in self.nodes:
+#             dist = np.linalg.norm(node.point - query_point)
+#             if dist < closest_distance:
+#                 closest_distance = dist
+#                 closest_point = node
+#         return closest_point
+    
+#     def query_spheroid(self, center: np.ndarray, radius: float) -> List[KDTreeNode]:
+#         return [node for node in self.nodes if np.linalg.norm(node.point - center) <= radius]
