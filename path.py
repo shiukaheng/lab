@@ -16,7 +16,8 @@ import time
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal):
-    #TODO
+    # Define the cost field as the distance to the goal
+    # Run A* on the cost field
     return [qinit, qgoal]
     pass
 

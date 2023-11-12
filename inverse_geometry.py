@@ -61,7 +61,7 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
             updatevisuals(viz, robot, cube, q)
 
     # First we make a relaxed optimization to get close to the solution
-    qcurrent = qinitial
+    # qcurrent = qinitial
     qcurrent = to_compact(qcurrent)
 
     print("💭 Relaxed optimization")
