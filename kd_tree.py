@@ -100,7 +100,7 @@ class KDTree:
                 return []
 
             axis = depth % self.dimensions
-            dist = np.linalg.norm(np.array(center) - np.array(node.point))
+            dist = np.linalg.norm(center - node.point)
             results = []
             if dist <= radius:
                 results.append(node)

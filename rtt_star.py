@@ -72,7 +72,7 @@ class RTTStar(KDTree):
         _, current_cost = self.get_path(new_node)
         for neighbor, neighbor_cost in [n for n in neighbors_in_reach if n[0] != best_parent]:
             # Lets see if we can get a better cost by going through the new node
-            new_cost = current_cost + np.linalg.norm(np.array(new_point) - np.array(neighbor.point))
+            new_cost = current_cost + np.linalg.norm(new_point - neighbor.point)
             if new_cost < neighbor_cost:
                 # We can get a better cost, lets update the neighbor
                 neighbor.parent = new_node
@@ -84,7 +84,7 @@ class RTTStar(KDTree):
         while node is not None:
             path.append(node)
             if node.parent is not None:
-                cost += np.linalg.norm(np.array(node.point) - np.array(node.parent.point))
+                cost += np.linalg.norm(node.point - node.parent.point)
             node = node.parent
         return path, cost
 
@@ -95,10 +95,10 @@ class RTTStar(KDTree):
         
     def check_edge_collision(self, start: np.ndarray, end: np.ndarray) -> (bool, Optional[np.ndarray]):
         # Sample along the edge and check for collisions using linspace, from start to end, return last non-collision sample
-        samples = np.linspace(start, end, self.collision_samples).tolist()
-        samples = [None] + samples
+        samples = np.linspace(start, end, self.collision_samples)
         for (i, sample) in enumerate(samples):
             if i == 0:
+                # Theoretically, we should check the start point, but we assume it was checked before
                 continue
             if self.check_point_collision(sample):
                 return True, samples[i-1]
