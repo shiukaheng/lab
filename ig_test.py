@@ -122,6 +122,10 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
         print("=====================================")
         print(f"Test {i+1}/{iters}: {cubetarget.translation}")
         res, is_success = computeqgrasppose(robot, q_init, cube, cubetarget, viz)
+        if is_success:
+            print("✅ Successfully solved")
+        else:
+            print("❌ Failed to solve")
         print("=====================================")
         print()
         col, joint, eff, iss = success_debug(robot, cube, res) # Evaluate why the test failed
