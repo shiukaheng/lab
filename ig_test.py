@@ -116,9 +116,9 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
     
     # Run tests
     test_results = []
+    cubetargets = [generate_cube_pos() for i in range(iters)]
     print(f"Running {iters} tests")
-    for i in range(iters):
-        cubetarget = generate_cube_pos()
+    for i, cubetarget in enumerate(cubetargets):
         print("=====================================")
         print(f"Test {i+1}/{iters}: {cubetarget.translation}")
         res, is_success = computeqgrasppose(robot, q_init, cube, cubetarget, viz)
@@ -148,11 +148,11 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
     num_joint_limits = iters - sum([r["joint_limits_ok"] for r in test_results])
     
     print("=====================================")
-    print("Test Results")
+    print("📋 Test Results")
     print()
-    print(f"Success Rate: {num_success}/{iters} ({num_success/iters*100:.2f}%)")
-    print(f"Collision Rate: {num_collision}/{iters} ({num_collision/iters*100:.2f}%)")
-    print(f"Joint Limits Violated Rate: {num_joint_limits}/{iters} ({num_joint_limits/iters*100:.2f}%)")
+    print(f"💯 Success Rate: {num_success}/{iters} ({num_success/iters*100:.2f}%)")
+    print(f"💥 Collision Rate: {num_collision}/{iters} ({num_collision/iters*100:.2f}%)")
+    print(f"🦾 Joint Limits Violated Rate: {num_joint_limits}/{iters} ({num_joint_limits/iters*100:.2f}%)")
     print("=====================================")
     print()
     if interactive:
