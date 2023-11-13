@@ -92,10 +92,10 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     for i in range(10):
         print(f"🪄 Refinement {i+1}/10: {iss}")
         noise = np.random.normal(0, 0.5, qcurrent.shape)
-        # for j in range(100):
-        #     if not collision(robot, to_full(refined_draft + noise)):
-        #         break
-        #     noise += np.random.normal(0, 0.05, qcurrent.shape)
+        for j in range(100):
+            if not collision(robot, to_full(refined_draft + noise)):
+                break
+            noise += np.random.normal(0, 0.05, qcurrent.shape)
         new_refined = fmin_bfgs(refinement_cost, refined_draft + noise, callback=callback, disp=False)
         new_cost = refinement_cost(new_refined)
         s, iss = success(robot, cube, to_full(new_refined))
