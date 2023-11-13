@@ -1,7 +1,7 @@
 import numpy as np
 import pinocchio as pin 
 import numpy as np
-from tools import collision, getcubeplacement, jointlimitsviolated, jointlimitscost, get_colliding_pairs
+from tools import collision, getcubeplacement, jointlimitsviolated, jointlimitscost, get_colliding_pairs, setcubeplacement
 from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
 from config import LEFT_HOOK, RIGHT_HOOK, LEFT_HAND, RIGHT_HAND, EPSILON
 from tools import setupwithmeshcat
@@ -79,19 +79,27 @@ def generate_cube_pos(x=None, y=None, z=None):
     z = z if z is not None else np.random.uniform(0.9, 1.1)
     return pin.SE3(rotate('z', 0.),np.array([x, y, z]))
 
-def evaluate_pose(robot, q, cube, printEval=True):
-    # Check if the robot is in collision or respecting the joint limits
-    collision_violated = False
-    joint_limits_violated = False
-    if collision(robot, q):
-        collision_violated = True
-    if jointlimitsviolated(robot, q):
-        joint_limits_violated = True
-    jlc = jointlimitscost(robot, q)
-    edc = effector_distance_cost(robot, cube)
-    if printEval:
-        print(f"Collision: {collision_violated}, Joint Limits: {joint_limits_violated}, Joints Cost: {jlc}, Effector Distance Cost: {edc}")
-    return collision_violated, joint_limits_violated, jlc, edc
+def success(robot, cube, q):
+    # No collisions, no joint limits violated, and the cube is grasped (cost < 0.1)
+    collision_ok = not collision(robot, q)
+    joint_limits_ok = not jointlimitsviolated(robot, q)
+    effector_distance_ok = effector_distance_cost(robot, cube) < 0.05
+    issue = ""
+    if not (collision_ok and joint_limits_ok and effector_distance_ok):
+        issue = f"Collision: {'✅' if collision_ok else '❌'}, Joint Limits: {'✅' if joint_limits_ok else '❌'}, Effector Distance Cost: {'✅' if effector_distance_ok else '❌'}, Colliding Pairs: {get_colliding_pairs(robot, q)}"
+
+    return collision_ok and joint_limits_ok and effector_distance_ok, issue
+
+def success_debug(robot, cube, q):
+    # No collisions, no joint limits violated, and the cube is grasped (cost < 0.1)
+    collision_ok = not collision(robot, q)
+    joint_limits_ok = not jointlimitsviolated(robot, q)
+    effector_distance_ok = effector_distance_cost(robot, cube) < 0.05
+    issue = ""
+    if not (collision_ok and joint_limits_ok and effector_distance_ok):
+        issue = f"Collision: {'✅' if collision_ok else '❌'}, Joint Limits: {'✅' if joint_limits_ok else '❌'}, Effector Distance Cost: {'✅' if effector_distance_ok else '❌'}, Colliding Pairs: {get_colliding_pairs(robot, q)}"
+
+    return collision_ok, joint_limits_ok, effector_distance_ok, issue
 
 def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
     """
@@ -99,7 +107,7 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
     still evaluate relative performance.
     """
 
-    q = robot.q0.copy()
+    q_init = robot.q0.copy()
     if not interactive:
         viz = None
 
@@ -113,21 +121,75 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
         cubetarget = generate_cube_pos()
         print("=====================================")
         print(f"Test {i+1}/{iters}: {cubetarget.translation}")
-        res, success = computeqgrasppose(robot, q, cube, cubetarget, viz)
+        res, is_success = computeqgrasppose(robot, q_init, cube, cubetarget, viz)
         print("=====================================")
         print()
-        col, joints, jlc, edc = evaluate_pose(robot, res, cube, printEval=False)
+        col, joint, eff, iss = success_debug(robot, cube, res) # Evaluate why the test failed
         colliding_pairs = get_colliding_pairs(robot, res)
-        test_results.append((cubetarget, res, col, joints, colliding_pairs, jlc, edc))
-        # if viz is not None:
-        #     time.sleep(1)
+        test_results.append({
+            "cube_target": cubetarget.translation,
+            "result_pose": res,
+            "success": is_success,
+            "collision_ok": col,
+            "colliding_pairs": colliding_pairs,
+            "joint_limits_ok": joint,
+            "effector_distance_ok": eff,
+            "issue": iss
+        })
         
     print()
-    # Calculate the statistics: percentage of collision, percentage of joint limits violated
-    col = sum([test[2] for test in test_results])
-    joints = sum([test[3] for test in test_results])
-    print(f"Collision: {col/iters*100}%, Joint Limits: {joints/iters*100}%")
-    return test_results
+    # Calculate the statistics
+    num_success = sum([r["success"] for r in test_results])
+    num_collision = iters - sum([r["collision_ok"] for r in test_results])
+    num_joint_limits = iters - sum([r["joint_limits_ok"] for r in test_results])
+    
+    print("=====================================")
+    print("Test Results")
+    print()
+    print(f"Success Rate: {num_success}/{iters} ({num_success/iters*100:.2f}%)")
+    print(f"Collision Rate: {num_collision}/{iters} ({num_collision/iters*100:.2f}%)")
+    print(f"Joint Limits Violated Rate: {num_joint_limits}/{iters} ({num_joint_limits/iters*100:.2f}%)")
+    print("=====================================")
+    print()
+    if interactive:
+        failed_tests = [r for r in test_results if not r["success"]]
+        current_test_index = 0
+
+        while current_test_index < len(failed_tests):
+            test = failed_tests[current_test_index]
+            print(f"Inspecting Failed Test {current_test_index + 1}/{len(failed_tests)}")
+            print("Target Position:", test["cube_target"])
+            print("Issue:", test["issue"])
+
+            # Update robot's configuration to the failed test pose
+            if viz is not None:
+                setcubeplacement(robot, cube, generate_cube_pos(*test["cube_target"]))
+                viz.display(test["result_pose"])
+
+            command = input("Enter 'n' for next, 'p' for previous, 'r' to re-run, 'q' to quit: ").strip().lower()
+
+            if command == "n":
+                if current_test_index < len(failed_tests) - 1:
+                    current_test_index += 1
+                else:
+                    print("No more tests to display.")
+            elif command == "p":
+                if current_test_index > 0:
+                    current_test_index -= 1
+                else:
+                    print("This is the first test.")
+            elif command == "r":
+                q, is_success = computeqgrasppose(robot, robot.q0.copy(), cube, generate_cube_pos(*test["cube_target"]), viz)
+                print("Re-run complete.")
+            elif command == "q":
+                print("Exiting test inspector.")
+                break
+            else:
+                print("Invalid command. Please enter 'n', 'p', 'r', or 'q'.")
+
+            print("=====================================")
+
+        print("Completed inspection of all failed tests.")
 
 def test_position(robot, cube, viz, q0, pose, name=None):
     print("=====================================")
@@ -135,10 +197,10 @@ def test_position(robot, cube, viz, q0, pose, name=None):
         print(f"Testing {name}")
     else:
         print("Testing pose")
-    q, success = computeqgrasppose(robot, q0, cube, pose, viz)
+    q, is_success = computeqgrasppose(robot, q0, cube, pose, viz)
     print("=====================================")
     print()
-    return q, success
+    return q, is_success
 
 def original_tests(robot, cube, viz, interactive=False):
     q = robot.q0.copy()
@@ -149,5 +211,5 @@ def original_tests(robot, cube, viz, interactive=False):
             
 if __name__ == "__main__":
     robot, cube, viz = setupwithmeshcat()
-    original_tests(robot, cube, viz, interactive=True)
-    random_tests(robot, cube, viz, interactive=True)
+    # original_tests(robot, cube, viz, interactive=True)
+    random_tests(robot, cube, viz, interactive=True, iters=5)
