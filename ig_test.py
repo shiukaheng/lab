@@ -119,8 +119,8 @@ def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
         col, joints, jlc, edc = evaluate_pose(robot, res, cube, printEval=False)
         colliding_pairs = get_colliding_pairs(robot, res)
         test_results.append((cubetarget, res, col, joints, colliding_pairs, jlc, edc))
-        if viz is not None:
-            time.sleep(1)
+        # if viz is not None:
+        #     time.sleep(1)
         
     print()
     # Calculate the statistics: percentage of collision, percentage of joint limits violated
