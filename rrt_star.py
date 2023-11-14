@@ -32,8 +32,8 @@ class RTTStar(KDTree):
                  upper_bounds: Optional[np.ndarray] = None,
                  collision_samples: int = 10,
                  goal: Optional[np.ndarray] = None,
-                 goal_radius: float = 0.5,
                  bias: float = 0.05,
+                 goal_seeking_radius: Optional[float] = 1.0,
                  node_class = RTTNode,
                  ):
         super().__init__(dimensions, node_class)
@@ -44,12 +44,12 @@ class RTTStar(KDTree):
         self.upper_bounds = upper_bounds
         self.collision_samples = collision_samples
         self.goal = goal
-        self.goal_radius = goal_radius
         self.bias = bias
         self.goal_node = None
         if goal is not None:
             self.goal_node = node_class(goal) # We don't insert so it doesn't get added to the kd-tree
             self.goal_node.is_goal = True
+        self.goal_seeking_radius = goal_seeking_radius
 
     def sample(self) -> np.ndarray:
         # Lets sample a random point in the search space. If we have a goal, we sample that with a certain probability.
@@ -103,11 +103,34 @@ class RTTStar(KDTree):
     # Question: How is the q of goal calculated?
 
     def handle_goal(self, new_clamped_point, new_node, current_cost):
-        if self.goal is not None: # Only run if we have goal defined
-            goal_reached = np.linalg.norm(new_clamped_point - self.goal) < self.goal_radius # Check if we reached the goal
-            best_goal = self.goal_node.parent is None or current_cost < self.get_path(self.goal_node)[1] # Check if we have a better path to the goal
-            if goal_reached and best_goal: # If we reached the goal and have a better path, lets update the goal node
-                self.goal_node.parent = new_node # Update the goal node
+        if self.goal is None:
+            return
+        if self.goal_seeking_radius is not None:
+            # Check if we are within the goal direct radius, if so we attempt to connect directly to the goal
+            distance_to_goal = self.distance_to_goal(new_node.point)
+            goal_direct_reached = distance_to_goal < self.goal_seeking_radius
+            if goal_direct_reached:
+                # We are within the goal direct radius, lets check if we can connect directly to the goal
+                # goal_direct_collision, goal_direct_point = self.check_edge_collision(new_node.point, self.goal)
+                result = self.check_edge_collision(new_node.point, self.goal)
+                goal_direct_collision = result[0]
+                goal_direct_point = result[1]
+                if not goal_direct_collision:
+                    # We can connect directly to the goal! Does another path already exist?
+                    if self.goal_node.parent is None:
+                        # No path exists, lets connect directly to the goal
+                        self.goal_node.parent = new_node
+                        return
+                    # Otherwise, lets compare the existing path to the new path
+                    existing_path_cost = self.get_path(self.goal_node)[1]
+                    new_path_cost = current_cost + np.linalg.norm(new_clamped_point - self.goal)
+                    if new_path_cost < existing_path_cost:
+                        # We have a better path, lets connect directly to the goal
+                        self.goal_node.parent = new_node
+                        return
+
+    def distance_to_goal(self, new_clamped_point):
+        return np.linalg.norm(new_clamped_point - self.goal)# Update the goal node
 
     def sample_random_point(self):
         if (self.goal is not None) and (np.random.uniform() < self.bias):
@@ -140,7 +163,10 @@ class RTTStar(KDTree):
                 # Theoretically, we should check the start point, but we assume it was checked before
                 continue
             if self.check_point_collision(sample):
-                return True, samples[i-1]
+                if i == 1:
+                    return True, None
+                else:
+                    return True, samples[i-1]
         return False, end
     
     def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> Optional[List[RTTNode]]:
@@ -165,7 +191,8 @@ class RTTStar(KDTree):
                 if verbose:
                     print(f"✨ Refining path: {int((i+1)/post_goal_iterations*100)}%", end="\r", flush=True)
             if verbose:
-                print("✅ Refining path: Done!", flush=True)
+                if post_goal_iterations > 0:
+                    print("✅ Refining path: Done!", flush=True)
         print("=====================================")
             
         # Now, lets get the path

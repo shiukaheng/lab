@@ -37,16 +37,28 @@ class RTTStarImpl(RTTStar):
                     dimensions: int=3,
                     initial: Optional[np.ndarray] = None,
                     step_size: float = 0.2,
-                    neighbor_radius: float = 0.3,
+                    neighbor_radius: float = 0.4,
                     lower_bounds: Optional[np.ndarray] = np.array([0.4, -0.4, 0.93]),
                     upper_bounds: Optional[np.ndarray] = np.array([0.5, 0.4, 1.5]),
                     collision_samples: int = 5,
                     goal: Optional[np.ndarray] = None,
-                    goal_radius: float = 0.05,
                     bias: float = 0.1,
+                    goal_seeking_radius: Optional[float] = 1.0,
                     q_init: Optional[np.ndarray] = None,
                     ):
-            super().__init__(dimensions, initial, step_size, neighbor_radius, lower_bounds, upper_bounds, collision_samples, goal, goal_radius, bias, node_class=RTTStarNodeImpl)
+            super().__init__(
+                dimensions=dimensions,
+                initial=initial,
+                step_size=step_size,
+                neighbor_radius=neighbor_radius,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
+                collision_samples=collision_samples,
+                goal=goal,
+                bias=bias,
+                goal_seeking_radius=goal_seeking_radius,
+                node_class=RTTStarNodeImpl,
+            )
             self.robot = robot
             self.cube = cube
             self.viz = viz
@@ -57,7 +69,7 @@ class RTTStarImpl(RTTStar):
     def plot_segment(self, start: RTTStarNodeImpl, end: RTTStarNodeImpl):
         # Plot a segment between start and end, and add the meshcat path to the segment array
         path = f"/path_{len(self.meshcat_paths)}"
-        print(f"Start: {start.point}, End: {end.point}")
+        # print(f"Start: {start.point}, End: {end.point}")
         self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start.point, end.point]).transpose()), g.MeshBasicMaterial(color=0xff0000)))
         self.meshcat_paths.append(path)
 
@@ -68,7 +80,7 @@ class RTTStarImpl(RTTStar):
 
     def sample(self) -> np.ndarray:
         # Lets find the nearest neighbor to target
-        self.print_nn()
+        # self.print_nn()
 
         # Sample a new point
         new_point = self.sample_random_point()
@@ -150,7 +162,7 @@ class RTTStarImpl(RTTStar):
         magnitude = np.linalg.norm(difference)
 
         # Lets extend to the maximum step size or until we hit an obstacle
-        if magnitude == 0:
+        if magnitude == 0: # For cases where we are already at the nearest node
             new_point_clamped = nearest_node.point
             new_q = None
         else:
@@ -174,10 +186,13 @@ class RTTStarImpl(RTTStar):
                 continue
             collision, start_q = self.check_point_collision(sample, start_q)
             if collision:
-                return True, samples[i-1], start_q
+                if i == 1:
+                    return True, None, None
+                else:
+                    return True, samples[i-1], start_q
         return False, end, start_q
     
-    def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> List[RTTNode] | None:
+    def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, verbose=True) -> List[RTTNode] | None:
         try:
             r = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
@@ -185,3 +200,36 @@ class RTTStarImpl(RTTStar):
         except KeyboardInterrupt:
             self.clear_paths()
             raise KeyboardInterrupt()
+        
+    def handle_goal(self, new_clamped_point, new_node, current_cost):
+        if self.goal is None:
+            return
+        if self.goal_seeking_radius is not None:
+            # Check if we are within the goal direct radius, if so we attempt to connect directly to the goal
+            distance_to_goal = self.distance_to_goal(new_node.point)
+            goal_direct_reached = distance_to_goal < self.goal_seeking_radius
+            if goal_direct_reached:
+                # We are within the goal direct radius, lets check if we can connect directly to the goal
+                # goal_direct_collision, goal_direct_point = self.check_edge_collision(new_node.point, self.goal)
+                result = self.check_edge_collision(new_node.point, self.goal)
+                goal_direct_collision = result[0]
+                goal_direct_point = result[1]
+                end_q = result[2]
+
+                if not goal_direct_collision:
+                    # We can connect directly to the goal! Does another path already exist?
+                    if (self.goal_node.parent is None):
+                        # No path exists, lets connect directly to the goal
+                        self.connect_to_end(new_node, end_q)
+                        return
+                    # Otherwise, lets compare the existing path to the new path
+                    existing_path_cost = self.get_path(self.goal_node)[1]
+                    new_path_cost = current_cost + np.linalg.norm(new_clamped_point - self.goal)
+                    if new_path_cost < existing_path_cost:
+                        # We have a better path, lets connect directly to the goal
+                        self.connect_to_end(new_node, end_q)
+                        return
+
+    def connect_to_end(self, new_node, end_q):
+        self.goal_node.parent = new_node
+        self.goal_node.q = end_q
