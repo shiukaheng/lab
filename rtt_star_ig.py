@@ -25,6 +25,7 @@ class RTTStarNodeImpl(RTTNode):
                  ):
         super().__init__(point, left, right)
         self.q = None
+        self.interpolated_frames = []
 
 
 class RTTStarImpl(RTTStar):
