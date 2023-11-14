@@ -53,54 +53,82 @@ class RTTStar(KDTree):
 
     def sample(self) -> np.ndarray:
         # Lets sample a random point in the search space. If we have a goal, we sample that with a certain probability.
-        new_point = self.sample_random_point()
+        new_point, biased = self.sample_random_point()
 
         node = self.nearest_neighbor(new_point)
         difference = new_point - node.point
         magnitude = np.linalg.norm(difference)
+        reached_goal = False
         if magnitude == 0:
             new_clamped_point = node.point
         else:
             direction = difference / magnitude
             new_point_max = node.point + direction * min(self.step_size, magnitude)
-            _, new_clamped_point = self.check_edge_collision(node.point, new_point_max) # 
+            is_unclamped = magnitude <= self.step_size
+            has_collision, new_clamped_point = self.check_edge_collision(node.point, new_point_max)
+            if new_clamped_point is None:
+                return self.sample()
+            if (not has_collision) and is_unclamped and biased:
+                reached_goal = True
 
-        if new_clamped_point is None:
-            return self.sample() # If we cant find a point, lets try again
-        # Now that we have a new point, lets insert it into the kd-tree
-        new_node = self.insert(new_clamped_point)
-        # Search for neighbors within a certain radius and see if we can find a better parent
-        neighbors = self.query_spheroid(new_clamped_point, self.neighbor_radius)
-        # Lets filter away all neighbors that are not reachable from the new point
-        neighbors_in_reach = [n for n in neighbors if self.check_edge_collision(n.point, new_clamped_point)[0] == False and n != new_node]
-        neighbors_in_reach = [(n, self.get_path(n)[1]) for n in neighbors_in_reach]
-        # Now, lets find the best parent
-        best_cost = np.inf
-        best_parent = None
-        for neighbor, neighbor_cost in neighbors_in_reach:
-            cost = neighbor_cost + np.linalg.norm(np.array(new_clamped_point) - np.array(neighbor.point))
-            if cost < best_cost:
-                best_cost = cost
-                best_parent = neighbor
-        if best_parent is None:
-            raise RuntimeError("No valid parent found, increase neighbor radius. Should implement a better way to handle this. Cant delete node in KDTree, so we have to handle other way")
-        # Now that we have a parent, lets update the node
-        new_node.parent = best_parent
-        # Now, lets see if we can help any of the neighbors reduce their cost by making them point to the new node
-        # Lets first get our own cost to the root
-        _, current_cost = self.get_path(new_node)
-        for neighbor, neighbor_cost in [n for n in neighbors_in_reach if n[0] != best_parent]:
-            # Lets see if we can get a better cost by going through the new node
-            new_cost = current_cost + np.linalg.norm(new_clamped_point - neighbor.point)
-            if new_cost < neighbor_cost:
-                # We can get a better cost, lets update the neighbor
-                neighbor.parent = new_node
-        # Did we reach the goal?
-        self.handle_goal(new_clamped_point, new_node, current_cost)
-        return new_node
+        if reached_goal:
+            # See if this is the best path to the goal
+            old_cost = self.get_goal_cost()
+            # See the new cost
+            new_cost = self.get_hypothetical_cost(node)
+            if new_cost < old_cost:
+                # We have a better path to the goal, lets update it
+                self.goal_node.parent = node
+                return self.goal_node
+        else:
+            # Now that we have a new point, lets insert it into the kd-tree
+            new_node = self.insert(new_clamped_point)
+            # Search for neighbors within a certain radius and see if we can find a better parent
+            neighbors = self.query_spheroid(new_clamped_point, self.neighbor_radius)
+            # Lets filter away all neighbors that are not reachable from the new point
+            neighbors_in_reach = [n for n in neighbors if self.check_edge_collision(n.point, new_clamped_point)[0] == False and n != new_node]
+            neighbors_in_reach = [(n, self.get_path(n)[1]) for n in neighbors_in_reach]
+            # Now, lets find the best parent
+            best_cost = np.inf
+            best_parent = None
+            for neighbor, neighbor_cost in neighbors_in_reach:
+                cost = neighbor_cost + np.linalg.norm(np.array(new_clamped_point) - np.array(neighbor.point))
+                if cost < best_cost:
+                    best_cost = cost
+                    best_parent = neighbor
+            if best_parent is None:
+                raise RuntimeError("No valid parent found, increase neighbor radius. Should implement a better way to handle this. Cant delete node in KDTree, so we have to handle other way")
+            # Now that we have a parent, lets update the node
+            new_node.parent = best_parent
+            # Now, lets see if we can help any of the neighbors reduce their cost by making them point to the new node
+            # Lets first get our own cost to the root
+            _, current_cost = self.get_path(new_node)
+            for neighbor, neighbor_cost in [n for n in neighbors_in_reach if n[0] != best_parent]:
+                # Lets see if we can get a better cost by going through the new node
+                new_cost = current_cost + np.linalg.norm(new_clamped_point - neighbor.point)
+                if new_cost < neighbor_cost:
+                    # We can get a better cost, lets update the neighbor
+                    neighbor.parent = new_node
+            # Did we reach the goal?
+            self.handle_goal(new_clamped_point, new_node, current_cost)
+            return new_node
 
     # Old strategy: If we are within the goal radius, we see if we are the best path to the goal, and if so we connect to the goal
     # Question: How is the q of goal calculated?
+
+    def get_goal_cost(self):
+        if self.goal_node is None:
+            return np.inf
+        elif self.goal_node.parent is None:
+            return np.inf
+        else:
+            return self.get_path(self.goal_node)[1]
+        
+    def get_hypothetical_cost(self, node):
+        if self.goal_node is None:
+            return np.inf
+        else:
+            return np.linalg.norm(node.point - self.goal_node.point) + self.get_path(node)[1]
 
     def handle_goal(self, new_clamped_point, new_node, current_cost):
         if self.goal is None:
@@ -134,12 +162,10 @@ class RTTStar(KDTree):
 
     def sample_random_point(self):
         if (self.goal is not None) and (np.random.uniform() < self.bias):
-            # Lets sample the goal
-            new_point = self.goal
-            # print("Sampling goal:", new_point)
+            return self.goal, True
         else:
             new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
-        return new_point
+            return new_point, False
     
     def get_path(self, node: RTTNode) -> (List[RTTNode], float):
         path = []

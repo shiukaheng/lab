@@ -83,12 +83,17 @@ class RTTStarImpl(RTTStar):
         # self.print_nn()
 
         # Sample a new point
-        new_point = self.sample_random_point()
-        new_point_clamped, new_q = self.clamp_sampled_point(new_point)
+        new_point, biased = self.sample_random_point()
+        nearest_node, new_point_clamped, new_q, reached_goal = self.clamp_sampled_point(new_point, biased)
 
         # If we don't have any valid point, lets try again with a new sample
         if new_point_clamped is None:
             return self.sample()
+        
+        if reached_goal and self.get_hypothetical_cost(nearest_node) < self.get_goal_cost():
+            self.goal_node.parent = nearest_node
+            self.goal_node.q = new_q
+            return self.goal_node
         
         # Now that we have a new point, lets insert it into the kd-tree
         new_node = self.insert_with_solved_q(new_point_clamped, new_q)
@@ -156,11 +161,11 @@ class RTTStarImpl(RTTStar):
             distance = np.linalg.norm(self.goal - nn.point)
             print("Distance to goal:", distance)
 
-    def clamp_sampled_point(self, new_point):
+    def clamp_sampled_point(self, new_point, biased):
         nearest_node = self.nearest_neighbor(new_point)
         difference = new_point - nearest_node.point
         magnitude = np.linalg.norm(difference)
-
+        reached_goal = False
         # Lets extend to the maximum step size or until we hit an obstacle
         if magnitude == 0: # For cases where we are already at the nearest node
             new_point_clamped = nearest_node.point
@@ -168,8 +173,11 @@ class RTTStarImpl(RTTStar):
         else:
             direction = difference / magnitude
             new_point_max = nearest_node.point + direction * min(self.step_size, magnitude)
-            _, new_point_clamped, new_q = self.check_edge_collision(nearest_node.point, new_point_max)
-        return new_point_clamped,new_q
+            is_unclamped = magnitude <= self.step_size
+            has_collision, new_point_clamped, new_q = self.check_edge_collision(nearest_node.point, new_point_max, nearest_node.q)
+            if (not has_collision) and is_unclamped and biased:
+                reached_goal = True
+        return nearest_node,new_point_clamped,new_q,reached_goal
     
     def check_point_collision(self, point: np.ndarray, start_q: Optional[np.ndarray]=None) -> bool:
         if start_q is None:
@@ -179,7 +187,8 @@ class RTTStarImpl(RTTStar):
     
     def check_edge_collision(self, start: np.ndarray, end: np.ndarray, start_q: Optional[np.ndarray]=None) -> (bool, Optional[np.ndarray], Optional[np.ndarray]): # (collision, best end, best end's q)
         # Sample along the edge and check for collisions using linspace, from start to end, return last non-collision sample
-        samples = np.linspace(start, end, self.collision_samples)
+        distance = np.linalg.norm(end - start)
+        samples = np.linspace(start, end, int(self.collision_samples * distance / self.step_size))
         for (i, sample) in enumerate(samples):
             if i == 0:
                 # Theoretically, we should check the start point, but we assume it was checked before
