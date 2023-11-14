@@ -43,13 +43,14 @@ class RTTStarImpl(RTTStar):
                     goal: Optional[np.ndarray] = None,
                     goal_radius: float = 0.05,
                     bias: float = 0.1,
-                    max_direct_distance: float = 0.5,
+                    q_init: Optional[np.ndarray] = None,
                     ):
             super().__init__(dimensions, initial, step_size, neighbor_radius, lower_bounds, upper_bounds, collision_samples, goal, goal_radius, bias, node_class=RTTStarNodeImpl)
             self.robot = robot
             self.cube = cube
             self.viz = viz
-            self.q_init = robot.q0.copy()
+            self.q_init = q_init if q_init is not None else robot.q0.copy()
+            self.initial_node.q = self.q_init
             self.meshcat_paths = []
 
     def plot_segment(self, start: RTTStarNodeImpl, end: RTTStarNodeImpl):
@@ -179,7 +180,7 @@ class RTTStarImpl(RTTStar):
         try:
             r = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
-            return [f.q for f in r]
+            return r
         except KeyboardInterrupt:
             self.clear_paths()
             raise KeyboardInterrupt()

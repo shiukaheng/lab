@@ -23,8 +23,9 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
         robot, cube, viz,
         initial=cubeplacementq0.translation,
         goal=cubeplacementqgoal.translation,
+        q_init=qinit,
     ).solve(post_goal_iterations=0)
-    return path
+    return [f.q for f in path]
 
 
 def displaypath(robot,path,dt,viz):

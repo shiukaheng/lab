@@ -99,6 +99,9 @@ class RTTStar(KDTree):
         self.handle_goal(new_clamped_point, new_node, current_cost)
         return new_node
 
+    # Old strategy: If we are within the goal radius, we see if we are the best path to the goal, and if so we connect to the goal
+    # Question: How is the q of goal calculated?
+
     def handle_goal(self, new_clamped_point, new_node, current_cost):
         if self.goal is not None: # Only run if we have goal defined
             goal_reached = np.linalg.norm(new_clamped_point - self.goal) < self.goal_radius # Check if we reached the goal
