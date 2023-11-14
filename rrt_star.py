@@ -11,12 +11,11 @@ class RTTNode(KDTreeNode):
     def __init__(self, 
                  point: np.ndarray, 
                  left: Optional['RTTNode'] = None, 
-                 right: Optional['RTTNode'] = None,
-                 is_goal: bool = False,
+                 right: Optional['RTTNode'] = None
                  ):
-        super().__init__(point, left, right, is_goal)
+        super().__init__(point, left, right)
         self.parent = None
-        self.is_goal = is_goal
+        self.is_goal = False
     def print_path(self):
         node = self
         while node is not None:
@@ -38,7 +37,7 @@ class RTTStar(KDTree):
                  node_class = RTTNode,
                  ):
         super().__init__(dimensions, node_class)
-        self.insert(initial)
+        self.initial_node = self.insert(initial)
         self.step_size = step_size
         self.neighbor_radius = neighbor_radius
         self.lower_bounds = lower_bounds
@@ -48,39 +47,38 @@ class RTTStar(KDTree):
         self.goal_radius = goal_radius
         self.bias = bias
         self.goal_node = None
+        if goal is not None:
+            self.goal_node = node_class(goal) # We don't insert so it doesn't get added to the kd-tree
+            self.goal_node.is_goal = True
 
     def sample(self) -> np.ndarray:
         # Lets sample a random point in the search space. If we have a goal, we sample that with a certain probability.
-        if (self.goal is not None) and (np.random.uniform() < self.bias):
-            # Lets sample the goal
-            new_point = self.goal
-            # print("Sampling goal:", new_point)
-        else:
-            new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
+        new_point = self.sample_random_point()
+
         node = self.nearest_neighbor(new_point)
         difference = new_point - node.point
         magnitude = np.linalg.norm(difference)
         if magnitude == 0:
-            new_point = node.point
+            new_clamped_point = node.point
         else:
             direction = difference / magnitude
             new_point_max = node.point + direction * min(self.step_size, magnitude)
-            _, new_point = self.check_edge_collision(node.point, new_point_max) # 
+            _, new_clamped_point = self.check_edge_collision(node.point, new_point_max) # 
 
-        if new_point is None:
+        if new_clamped_point is None:
             return self.sample() # If we cant find a point, lets try again
         # Now that we have a new point, lets insert it into the kd-tree
-        new_node = self.insert(new_point)
+        new_node = self.insert(new_clamped_point)
         # Search for neighbors within a certain radius and see if we can find a better parent
-        neighbors = self.query_spheroid(new_point, self.neighbor_radius)
+        neighbors = self.query_spheroid(new_clamped_point, self.neighbor_radius)
         # Lets filter away all neighbors that are not reachable from the new point
-        neighbors_in_reach = [n for n in neighbors if self.check_edge_collision(n.point, new_point)[0] == False and n != new_node]
+        neighbors_in_reach = [n for n in neighbors if self.check_edge_collision(n.point, new_clamped_point)[0] == False and n != new_node]
         neighbors_in_reach = [(n, self.get_path(n)[1]) for n in neighbors_in_reach]
         # Now, lets find the best parent
         best_cost = np.inf
         best_parent = None
         for neighbor, neighbor_cost in neighbors_in_reach:
-            cost = neighbor_cost + np.linalg.norm(np.array(new_point) - np.array(neighbor.point))
+            cost = neighbor_cost + np.linalg.norm(np.array(new_clamped_point) - np.array(neighbor.point))
             if cost < best_cost:
                 best_cost = cost
                 best_parent = neighbor
@@ -93,17 +91,29 @@ class RTTStar(KDTree):
         _, current_cost = self.get_path(new_node)
         for neighbor, neighbor_cost in [n for n in neighbors_in_reach if n[0] != best_parent]:
             # Lets see if we can get a better cost by going through the new node
-            new_cost = current_cost + np.linalg.norm(new_point - neighbor.point)
+            new_cost = current_cost + np.linalg.norm(new_clamped_point - neighbor.point)
             if new_cost < neighbor_cost:
                 # We can get a better cost, lets update the neighbor
                 neighbor.parent = new_node
         # Did we reach the goal?
-        if self.goal is not None:
-            goal_reached = np.linalg.norm(new_point - self.goal) < self.goal_radius
-            best_goal = self.goal_node is None or current_cost < self.get_path(self.goal_node)[1]
-            if goal_reached and best_goal:
-                self.goal_node = new_node
+        self.handle_goal(new_clamped_point, new_node, current_cost)
         return new_node
+
+    def handle_goal(self, new_clamped_point, new_node, current_cost):
+        if self.goal is not None: # Only run if we have goal defined
+            goal_reached = np.linalg.norm(new_clamped_point - self.goal) < self.goal_radius # Check if we reached the goal
+            best_goal = self.goal_node.parent is None or current_cost < self.get_path(self.goal_node)[1] # Check if we have a better path to the goal
+            if goal_reached and best_goal: # If we reached the goal and have a better path, lets update the goal node
+                self.goal_node.parent = new_node # Update the goal node
+
+    def sample_random_point(self):
+        if (self.goal is not None) and (np.random.uniform() < self.bias):
+            # Lets sample the goal
+            new_point = self.goal
+            # print("Sampling goal:", new_point)
+        else:
+            new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
+        return new_point
     
     def get_path(self, node: RTTNode) -> (List[RTTNode], float):
         path = []
@@ -136,12 +146,12 @@ class RTTStar(KDTree):
             print("=====================================")
             print("🦾 Starting RTT*")
         iterations = 0
-        while self.goal_node is None and iterations < max_iterations:
+        while not self.goal_found() and iterations < max_iterations:
             self.sample()
             iterations += 1
             if verbose:
                 print(f"🔍 Exploring search space: {int((iterations+1)/max_iterations*100)}%", end="\r", flush=True)
-        if self.goal_node is None:
+        if not self.goal_found():
             if verbose:
                 print("❌ Exploring search space: No path found!", flush=True)
         else:
@@ -159,4 +169,14 @@ class RTTStar(KDTree):
         path, _ = self.get_path(self.goal_node)
         # Reverse the path list
         path.reverse()
-        return [x.point for x in path]
+        return path
+
+    def goal_found(self):
+        # Case where no goal is set. It will be free exploration, so always return false.
+        if self.goal_node is None:
+            return False
+        # Case where goal is set, but no path was found
+        if self.goal_node.parent is None:
+            return False
+        else: # Case where goal is set and path was found
+            return True

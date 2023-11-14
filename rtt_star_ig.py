@@ -93,11 +93,7 @@ class RTTStarImpl(RTTStar):
         current_cost = self.reduce_neighbour_cost(new_node, neighbors_in_reach, best_parent)
         
         # Did we reach the goal?
-        if self.goal is not None: # If we actually have goal defined
-            goal_reached = np.linalg.norm(new_node.point - self.goal) < self.goal_radius # Lets see if we are close enough to the goal to consider it reached
-            best_goal = self.goal_node is None or current_cost < self.get_path(self.goal_node)[1] # Lets see if we have a better path to the goal already (if we are continuing to sample after reaching the goal)
-            if goal_reached and best_goal: # If we reached the goal and we have a better path to the goal than before
-                self.goal_node = new_node # Lets update the goal node
+        self.handle_goal(new_point_clamped, new_node, current_cost)
         return new_node
 
     def reduce_neighbour_cost(self, new_node, neighbors_in_reach, best_parent):
@@ -154,22 +150,12 @@ class RTTStarImpl(RTTStar):
         # Lets extend to the maximum step size or until we hit an obstacle
         if magnitude == 0:
             new_point_clamped = nearest_node.point
+            new_q = None
         else:
             direction = difference / magnitude
             new_point_max = nearest_node.point + direction * min(self.step_size, magnitude)
             _, new_point_clamped, new_q = self.check_edge_collision(nearest_node.point, new_point_max)
         return new_point_clamped,new_q
-
-    def sample_random_point(self):
-        new_point = None
-        # Lets sample a random point in the search space. If we have a goal, we sample that with a certain probability.
-        if (self.goal is not None) and (np.random.uniform() < self.bias):
-            # Lets sample the goal
-            new_point = self.goal
-            # print("Sampling goal:", new_point)
-        else:
-            new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
-        return new_point
     
     def check_point_collision(self, point: np.ndarray, start_q: Optional[np.ndarray]=None) -> bool:
         if start_q is None:
@@ -191,36 +177,9 @@ class RTTStarImpl(RTTStar):
     
     def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> List[RTTNode] | None:
         try:
-            # Sample until we find a path to the goal
-            if verbose:
-                print("=====================================")
-                print("🦾 Starting RTT*")
-            iterations = 0
-            while self.goal_node is None and iterations < max_iterations:
-                self.sample()
-                iterations += 1
-                if verbose:
-                    print(f"🔍 Exploring search space: {int((iterations+1)/max_iterations*100)}%", end="\r", flush=True)
-            if self.goal_node is None:
-                if verbose:
-                    print("❌ Exploring search space: No path found!", flush=True)
-            else:
-                print("✅ Exploring search space: Path found!", flush=True)
-                # Now, lets sample some more to see if we can find a better path
-                for i in range(post_goal_iterations):
-                    self.sample()
-                    if verbose:
-                        print(f"✨ Refining path: {int((i+1)/post_goal_iterations*100)}%", end="\r", flush=True)
-                if verbose:
-                    print("✅ Refining path: Done!", flush=True)
-            print("=====================================")
-                
-            # Now, lets get the path
-            path, _ = self.get_path(self.goal_node)
-            # Reverse the path list
-            path.reverse()
+            r = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
-            return [x.q for x in path]
+            return [f.q for f in r]
         except KeyboardInterrupt:
             self.clear_paths()
             raise KeyboardInterrupt()

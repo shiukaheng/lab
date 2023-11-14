@@ -37,6 +37,9 @@ if __name__ == "__main__":
     from tools import setupwithmeshcat
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
     from inverse_geometry import computeqgrasppose
+
+    # Seed the random number generator
+    np.random.seed(42)
     
     robot, cube, viz = setupwithmeshcat()
     
