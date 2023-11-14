@@ -66,7 +66,7 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     s, iss = success(robot, cube, to_full(approx))
     if s:
         return to_full(approx), True
-    
+
     approx = fmin_slsqp(simple_cost, approx, f_ieqcons=inequality_constraint, disp=False, bounds=list(zip(to_compact(robot.model.lowerPositionLimit), to_compact(robot.model.upperPositionLimit))), epsilon=EPSILON)
     s, iss = success(robot, cube, to_full(approx))
     if s:

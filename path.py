@@ -22,8 +22,8 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
     path = RTTStarImpl(
         robot, cube, viz,
         initial=cubeplacementq0.translation,
-        goal=cubeplacementqgoal.translation
-    ).solve()
+        goal=cubeplacementqgoal.translation,
+    ).solve(post_goal_iterations=0)
     return path
 
 
@@ -49,5 +49,5 @@ if __name__ == "__main__":
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     
-    # displaypath(robot,path,dt=0.5,viz=viz) #you ll probably want to lower dt
+    displaypath(robot,path,dt=1,viz=viz) #you ll probably want to lower dt
     

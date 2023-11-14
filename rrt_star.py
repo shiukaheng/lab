@@ -12,9 +12,11 @@ class RTTNode(KDTreeNode):
                  point: np.ndarray, 
                  left: Optional['RTTNode'] = None, 
                  right: Optional['RTTNode'] = None,
+                 is_goal: bool = False,
                  ):
-        super().__init__(point, left, right)
+        super().__init__(point, left, right, is_goal)
         self.parent = None
+        self.is_goal = is_goal
     def print_path(self):
         node = self
         while node is not None:
@@ -25,16 +27,17 @@ class RTTStar(KDTree):
     def __init__(self, 
                  dimensions: int,
                  initial: Optional[np.ndarray] = None,
-                 step_size: float = 1.0,
-                 neighbor_radius: float = 5.0,
+                 step_size: float = 0.5,
+                 neighbor_radius: float = 2.0,
                  lower_bounds: Optional[np.ndarray] = None,
                  upper_bounds: Optional[np.ndarray] = None,
                  collision_samples: int = 10,
                  goal: Optional[np.ndarray] = None,
                  goal_radius: float = 0.5,
                  bias: float = 0.05,
+                 node_class = RTTNode,
                  ):
-        super().__init__(dimensions, RTTNode)
+        super().__init__(dimensions, node_class)
         self.insert(initial)
         self.step_size = step_size
         self.neighbor_radius = neighbor_radius
@@ -154,4 +157,6 @@ class RTTStar(KDTree):
             
         # Now, lets get the path
         path, _ = self.get_path(self.goal_node)
+        # Reverse the path list
+        path.reverse()
         return [x.point for x in path]
