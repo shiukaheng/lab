@@ -55,7 +55,7 @@ def distanceToObstacle(robot, q):
 
     dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]      
     
-    return np.mean(dists)
+    return np.min(dists)
 
 def weirdPostureCost(robot, q):
     # L2 of the difference between the current posture and the initial posture
@@ -71,7 +71,7 @@ def selfCollisionDistance(robot, q):
     pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
     dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]      
     # print(dists)
-    return np.mean(dists)
+    return np.min(dists)
 
 def forcefield(distance, threshold=0.1, multiplier=10):
     return max((-distance + threshold), 0) * multiplier

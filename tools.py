@@ -39,7 +39,7 @@ def collision_continuous(robot, q):
     pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
     pairs = [i for i, pair in enumerate(robot.collision_model.collisionPairs)]
     dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]
-    return np.mean(dists)
+    return np.min(dists)
 
 def distanceToObstacle(robot, q):
       '''Return the shortest distance between robot and the obstacle. '''

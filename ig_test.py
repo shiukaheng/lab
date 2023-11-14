@@ -208,12 +208,37 @@ def test_position(robot, cube, viz, q0, pose, name=None):
 
 def original_tests(robot, cube, viz, interactive=False):
     q = robot.q0.copy()
-    test_position(robot, cube, viz, q, CUBE_PLACEMENT, "initial pose")
-    test_position(robot, cube, viz, q, CUBE_PLACEMENT_TARGET, "target pose")
-    test_position(robot, cube, viz, q, generate_cube_pos(0.5, 0.15, 0.93), "target pose modified")
-    test_position(robot, cube, viz, q, generate_cube_pos(0.5, 0.11, 0.93), "target pose modified 2")
+    # test_position(robot, cube, viz, q, CUBE_PLACEMENT, "initial pose")
+    # test_position(robot, cube, viz, q, CUBE_PLACEMENT_TARGET, "target pose")
+    test_position(robot, cube, viz, q, generate_cube_pos(0.445607, 0.22814077, 0.93993476), "target pose modified")
+    test_position(robot, cube, viz, q, generate_cube_pos(0.40580836, 0.29294092, 1.020223), "target pose modified")
+    test_position(robot, cube, viz, q, generate_cube_pos(0.40343885, 0.32745632, 0.951756), "target pose modified")
+    test_position(robot, cube, viz, q, generate_cube_pos(0.41409242, 0.24175758, 0.91491013), "target pose modified")
             
+def visualize_joints(robot, cube, viz):
+    pose = robot.q0.copy()
+    min_pose = robot.model.lowerPositionLimit
+    max_pose = robot.model.upperPositionLimit
+    for joint_index in range(pose.shape[0]):
+        pose = robot.q0.copy()
+        animation = np.linspace(min_pose[joint_index], max_pose[joint_index], 100)
+        for i in range(animation.shape[0]):
+            pose[joint_index] = animation[i]
+            pin.framesForwardKinematics(robot.model, robot.data, pose)
+            viz.display(pose)
+            time.sleep(0.01)
+
+def visualize_pose(robot, cube, viz, pose):
+    pin.framesForwardKinematics(robot.model, robot.data, pose)
+    viz.display(pose)
+
 if __name__ == "__main__":
     robot, cube, viz = setupwithmeshcat()
+    # visualize_joints(robot, cube, viz)
     # original_tests(robot, cube, viz, interactive=True)
-    random_tests(robot, cube, viz, interactive=True, iters=5)
+    random_tests(robot, cube, viz, interactive=True, iters=100)
+    # qinitial = np.array([0, # Base
+    #                      0, 0, # Head
+    #                     0, -2, 3, 0, -1.57, -1.57, # Left arm
+    #                     0, -2, 3, 0, -1.57, 1.57,]) # Right arm
+    # visualize_pose(robot, cube, viz, qinitial)
