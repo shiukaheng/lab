@@ -72,7 +72,6 @@ def get_colliding_pairs(robot, q):
     
     return colliding_pairs
 
-
 def generate_cube_pos(x=None, y=None, z=None):
     x = x if x is not None else np.random.uniform(0.4, 0.5)
     y = y if y is not None else np.random.uniform(-0.4, 0.4)

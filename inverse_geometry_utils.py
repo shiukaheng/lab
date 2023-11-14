@@ -92,3 +92,9 @@ def to_compact(full_q):
 
 def to_full(compact_q):
     return np.insert(compact_q, 1, [0, 0])
+
+def generate_cube_pos(x=None, y=None, z=None):
+    x = x if x is not None else np.random.uniform(0.4, 0.5)
+    y = y if y is not None else np.random.uniform(-0.4, 0.4)
+    z = z if z is not None else np.random.uniform(0.9, 1.1)
+    return pin.SE3(rotate('z', 0.),np.array([x, y, z]))
