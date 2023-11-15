@@ -69,6 +69,8 @@ class RRTStarIG(RRTStar):
 
     def plot_segment(self, start: RRTStarIGNode, end: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
+        if self.viz is None:
+            return
         path = f"/path_{len(self.meshcat_paths)}"
         # print(f"Start: {start.point}, End: {end.point}")
         self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start.point, end.point]).transpose()), g.MeshBasicMaterial(color=0xff0000)))
@@ -223,7 +225,7 @@ class RRTStarIG(RRTStar):
             shortcut_optimized = self.path_shortcut(path, shortcut_iterations, verbose)
             if verbose:
                 print("=====================================")
-            return [f[1] for f in shortcut_optimized]
+            return shortcut_optimized
         except KeyboardInterrupt:
             self.clear_paths()
             raise KeyboardInterrupt()

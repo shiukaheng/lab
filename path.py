@@ -15,9 +15,11 @@ from config import LEFT_HAND, RIGHT_HAND
 import time
 
 from rrt_star_ig import *
+from cache_results import cache_results
 
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
+
 def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz):
     path = RRTStarIG(
         robot, cube, viz,
@@ -25,14 +27,24 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
         collision_samples=20,
-    ).solve(max_iterations=100, post_goal_iterations=10, shortcut_iterations=100)
+    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=100)
+    return [path[1] for path in path]
+
+@cache_results
+def computepathwithcubepos(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz):
+    path = RRTStarIG(
+        robot, cube, viz,
+        initial=cubeplacementq0.translation,
+        goal=cubeplacementqgoal.translation,
+        q_init=qinit,
+        collision_samples=20,
+    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=100)
     return path
 
 def displaypath(robot,path,dt,viz):
     for q in path:
         viz.display(q)
         time.sleep(dt)
-
 
 if __name__ == "__main__":
     from tools import setupwithmeshcat
