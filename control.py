@@ -7,7 +7,6 @@ Created on Wed Sep  6 15:32:51 2023
 """
 
 import numpy as np
-
 from bezier import Bezier
     
 # in my solution these gains were good enough for all joints but you might want to tune this.

@@ -44,6 +44,7 @@ class RRTStarIG(RRTStar):
                     bias: float = 0.1,
                     goal_seeking_radius: Optional[float] = 1.0,
                     q_init: Optional[np.ndarray] = None,
+                    shortcut_tolerance: float = 0.05,
                     ):
             super().__init__(
                 dimensions=dimensions,
@@ -64,6 +65,7 @@ class RRTStarIG(RRTStar):
             self.q_init = q_init if q_init is not None else robot.q0.copy()
             self.initial_node.q = self.q_init
             self.meshcat_paths = []
+            self.shortcut_tolerance = shortcut_tolerance
 
     def plot_segment(self, start: RRTStarIGNode, end: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
@@ -175,6 +177,7 @@ class RRTStarIG(RRTStar):
         if magnitude == 0: # For cases where we are already at the nearest node
             new_point_clamped = nearest_node.point
             new_q = None
+            interpolated = []
         else:
             direction = difference / magnitude
             new_point_max = nearest_node.point + direction * min(self.step_size, magnitude)
@@ -251,7 +254,7 @@ class RRTStarIG(RRTStar):
         if has_collision or second_q is None:
             return expanded_path
         # Lets check if the ending q is (almost) the same as the starting q, if not, we discard the shortcut
-        if np.linalg.norm(best_q - second_q) > 0.1:
+        if np.linalg.norm(best_q - second_q) > self.shortcut_tolerance:
             return expanded_path
         # We can connect the points! Lets cut the original path into three parts (before, discarded, after)
         before = expanded_path[:first_index+1]

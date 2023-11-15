@@ -204,20 +204,20 @@ class RRTStar(KDTree):
             self.sample()
             iterations += 1
             if verbose:
-                print(f"🔍 Exploring search space: {int((iterations+1)/max_iterations*100)}%", end="\r", flush=True)
+                print(f"🔍 Exploring search space: Iteration {iterations}/{max_iterations}", end="\r", flush=True)
         if not self.goal_found():
             if verbose:
                 print("❌ Exploring search space: No path found!", flush=True)
         else:
-            print("✅ Exploring search space: Path found!", flush=True)
+            print("✅ Exploring search space: Path found!          ", flush=True)
             # Now, lets sample some more to see if we can find a better path
             for i in range(post_goal_iterations):
                 self.sample()
                 if verbose:
-                    print(f"✨ Refining path: {int((i+1)/post_goal_iterations*100)}%", end="\r", flush=True)
+                    print(f"✨ Refining path: Iteration {i}/{post_goal_iterations}", end="\r", flush=True)
             if verbose:
                 if post_goal_iterations > 0:
-                    print("✅ Refining path: Done!", flush=True)
+                    print("✅ Refining path: Done!          ", flush=True)
             
         # Now, lets get the path
         path, _ = self.get_path(self.goal_node)
