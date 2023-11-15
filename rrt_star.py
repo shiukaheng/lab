@@ -7,11 +7,11 @@ import time
 N-dimensional RRT* implementation
 '''
 
-class RTTNode(KDTreeNode):
+class RRTStarNode(KDTreeNode):
     def __init__(self, 
                  point: np.ndarray, 
-                 left: Optional['RTTNode'] = None, 
-                 right: Optional['RTTNode'] = None
+                 left: Optional['RRTStarNode'] = None, 
+                 right: Optional['RRTStarNode'] = None
                  ):
         super().__init__(point, left, right)
         self.parent = None
@@ -22,7 +22,7 @@ class RTTNode(KDTreeNode):
             print(node.point)
             node = node.parent
 
-class RTTStar(KDTree):
+class RRTStar(KDTree):
     def __init__(self, 
                  dimensions: int,
                  initial: Optional[np.ndarray] = None,
@@ -34,7 +34,7 @@ class RTTStar(KDTree):
                  goal: Optional[np.ndarray] = None,
                  bias: float = 0.05,
                  goal_seeking_radius: Optional[float] = 1.0,
-                 node_class = RTTNode,
+                 node_class = RRTStarNode,
                  ):
         super().__init__(dimensions, node_class)
         self.initial_node = self.insert(initial)
@@ -167,7 +167,7 @@ class RTTStar(KDTree):
             new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
             return new_point, False
     
-    def get_path(self, node: RTTNode) -> (List[RTTNode], float):
+    def get_path(self, node: RRTStarNode) -> (List[RRTStarNode], float):
         path = []
         cost = 0.0
         while node is not None:
@@ -195,10 +195,9 @@ class RTTStar(KDTree):
                     return True, samples[i-1]
         return False, end
     
-    def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> Optional[List[RTTNode]]:
+    def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> Optional[List[RRTStarNode]]:
         # Sample until we find a path to the goal
         if verbose:
-            print("=====================================")
             print("🦾 Starting RTT*")
         iterations = 0
         while not self.goal_found() and iterations < max_iterations:
@@ -219,7 +218,6 @@ class RTTStar(KDTree):
             if verbose:
                 if post_goal_iterations > 0:
                     print("✅ Refining path: Done!", flush=True)
-        print("=====================================")
             
         # Now, lets get the path
         path, _ = self.get_path(self.goal_node)

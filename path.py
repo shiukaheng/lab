@@ -14,25 +14,18 @@ from numpy.linalg import pinv
 from config import LEFT_HAND, RIGHT_HAND
 import time
 
-from rtt_star_ig import *
+from rrt_star_ig import *
 
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz):
-    path = RTTStarImpl(
+    path = RRTStarIG(
         robot, cube, viz,
         initial=cubeplacementq0.translation,
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
-    ).solve(post_goal_iterations=0)
-    frames = []
-    for f in path:
-        # print(f.interpolated_frames)
-        if len(f.interpolated_frames) > 0:
-            frames.extend([x[1] for x in f.interpolated_frames])
-        frames.append(f.q)
-    return frames
-
+    ).solve(post_goal_iterations=0, shortcut_iterations=100)
+    return path
 
 def displaypath(robot,path,dt,viz):
     for q in path:
@@ -46,7 +39,7 @@ if __name__ == "__main__":
     from inverse_geometry import computeqgrasppose
 
     # Seed the random number generator
-    # np.random.seed(55)
+    # np.random.seed(42)
     
     robot, cube, viz = setupwithmeshcat()
     
@@ -58,6 +51,5 @@ if __name__ == "__main__":
         print ("error: invalid initial or end configuration")
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
-    
     displaypath(robot,path,dt=0.2,viz=viz) #you ll probably want to lower dt
     

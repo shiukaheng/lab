@@ -14,21 +14,20 @@ from inverse_geometry_utils import generate_cube_pos, to_full
 # Goal 3: Output interpolated_frames parts of the path too
 
 from rrt_star import *
-from rrt_star import RTTNode
+from rrt_star import RRTStarNode
 import meshcat.geometry as g
-
-class RTTStarNodeImpl(RTTNode):
+class RRTStarIGNode(RRTStarNode):
     def __init__(self, 
                  point: np.ndarray, 
-                 left: Optional['RTTNode'] = None, 
-                 right: Optional['RTTNode'] = None,
+                 left: Optional['RRTStarNode'] = None, 
+                 right: Optional['RRTStarNode'] = None,
                  ):
         super().__init__(point, left, right)
         self.q = None
         self.interpolated_frames = []
 
 
-class RTTStarImpl(RTTStar):
+class RRTStarIG(RRTStar):
     # Make init pass all arguments to super
     def __init__(self,
                     robot,
@@ -57,7 +56,7 @@ class RTTStarImpl(RTTStar):
                 goal=goal,
                 bias=bias,
                 goal_seeking_radius=goal_seeking_radius,
-                node_class=RTTStarNodeImpl,
+                node_class=RRTStarIGNode,
             )
             self.robot = robot
             self.cube = cube
@@ -66,7 +65,7 @@ class RTTStarImpl(RTTStar):
             self.initial_node.q = self.q_init
             self.meshcat_paths = []
 
-    def plot_segment(self, start: RTTStarNodeImpl, end: RTTStarNodeImpl):
+    def plot_segment(self, start: RRTStarIGNode, end: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
         path = f"/path_{len(self.meshcat_paths)}"
         # print(f"Start: {start.point}, End: {end.point}")
@@ -210,14 +209,72 @@ class RTTStarImpl(RTTStar):
                     return True, samples[i-1], start_q, interpolated
         return False, end, start_q, interpolated
     
-    def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, verbose=True) -> List[RTTNode] | None:
+    def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, shortcut_iterations: int = 500, verbose=True) -> List[RRTStarNode] | None:
         try:
-            r = super().solve(max_iterations, post_goal_iterations, verbose)
+            if verbose:
+                print("=====================================")
+            path = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
-            return r
+            if path is None:
+                return None
+            shortcut_optimized = self.path_shortcut(path, shortcut_iterations, verbose)
+            if verbose:
+                print("=====================================")
+            return [f[1] for f in shortcut_optimized]
         except KeyboardInterrupt:
             self.clear_paths()
             raise KeyboardInterrupt()
+        
+    def expand_path(self, path):
+        # We take the path and expand it into a flat list of (point, q) pairs, including the interpolated frames
+        expanded_path = []
+        for node in path:
+            if len(node.interpolated_frames) > 0:
+                expanded_path.extend(node.interpolated_frames)
+            expanded_path.append((node.point, node.q))
+        return expanded_path
+    
+    def path_shortcut_once(self, expanded_path):
+        # Select first random point
+        first_index = np.random.randint(0, len(expanded_path) - 1)
+        # Select the offset from the first point [1, len - 1]
+        second_index_offset = np.random.randint(1, len(expanded_path) - 1)
+        # Select the second point
+        second_index = (first_index + second_index_offset) % len(expanded_path)
+        # Sort the indices
+        first_index, second_index = sorted([first_index, second_index])
+        # Lets retrieve the points
+        first_point, first_q = expanded_path[first_index]
+        second_point, second_q = expanded_path[second_index]
+        # Lets check if we can connect the points
+        has_collision, best_point, best_q, interpolated = self.check_edge_collision(first_point, second_point, first_q)
+        if has_collision or second_q is None:
+            return expanded_path
+        # Lets check if the ending q is (almost) the same as the starting q, if not, we discard the shortcut
+        if np.linalg.norm(best_q - second_q) > 0.1:
+            return expanded_path
+        # We can connect the points! Lets cut the original path into three parts (before, discarded, after)
+        before = expanded_path[:first_index+1]
+        discarded = expanded_path[first_index:second_index]
+        after = expanded_path[second_index:]
+        # Now we can replace the discarded part with the interpolated path
+        return before + interpolated + after
+    
+    def expanded_path_length(self, expanded_path):
+        return sum([np.linalg.norm(p[0] - q[0]) for p, q in zip(expanded_path[:-1], expanded_path[1:])])
+    
+    def path_shortcut(self, path, iterations=100, verbose=True):
+        expanded_path = self.expand_path(path)
+        original_length = self.expanded_path_length(expanded_path)
+        for i in range(iterations):
+            expanded_path = self.path_shortcut_once(expanded_path)
+            print(f"✨ Optimizing path: {int((i+1)/iterations*100)}%, path length reduction: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%", end="\r")
+            if len(expanded_path) <= 2:
+                print()
+                print("✨ Shortcut path reached minimum length, stopping")
+                break
+        print(f"✅ Path optimized, path length reduction: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%         ")
+        return expanded_path
         
     def handle_goal(self, new_clamped_point, new_node, current_cost):
         if self.goal is None:
