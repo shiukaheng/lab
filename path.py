@@ -25,7 +25,13 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
     ).solve(post_goal_iterations=0)
-    return [f.q for f in path]
+    frames = []
+    for f in path:
+        # print(f.interpolated_frames)
+        if len(f.interpolated_frames) > 0:
+            frames.extend([x[1] for x in f.interpolated_frames])
+        frames.append(f.q)
+    return frames
 
 
 def displaypath(robot,path,dt,viz):
@@ -53,5 +59,5 @@ if __name__ == "__main__":
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     
-    displaypath(robot,path,dt=1,viz=viz) #you ll probably want to lower dt
+    displaypath(robot,path,dt=0.2,viz=viz) #you ll probably want to lower dt
     
