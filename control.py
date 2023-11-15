@@ -8,20 +8,26 @@ Created on Wed Sep  6 15:32:51 2023
 
 import numpy as np
 from bezier import Bezier
-from tools import setupwithmeshcat
 
 import numpy as np
 import scipy.interpolate
+
+from pid_controller import PIDController
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
 Kp = 300.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
+pid = PIDController(Kp, 0, Kv)
+
 def controllaw(sim, robot, trajs, tcurrent, cube):
-    q, vq = sim.getpybulletstate()
-    #TODO 
-    torques = [0.0 for _ in sim.bulletCtrlJointsInPinOrder]
-    sim.step(torques)
+    position, velocity, acceleration = trajs
+    q = position.evaluate(tcurrent)
+    vq = velocity.evaluate(tcurrent)
+    aq = acceleration.evaluate(tcurrent)
+    
+    sim.step(aq)
+
 
 def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
     # Time for each sample
@@ -93,12 +99,12 @@ def create_trajectory(waypoints, cube_waypoints, total_time, ramp_time, sampling
 
 if __name__ == "__main__":
         
-    # from tools import setupwithpybullet, setupwithpybulletandmeshcat, rununtil
+    from tools import setupwithpybulletandmeshcat, rununtil
     from config import DT
     
-    # robot, sim, cube = setupwithpybullet()
+    robot, sim, cube, viz = setupwithpybulletandmeshcat()
     
-    robot, cube, viz = setupwithmeshcat()
+    # robot, cube, viz = setupwithmeshcat()
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
     from inverse_geometry import computeqgrasppose
     from path import computepathwithcubepos, displaypath
@@ -108,9 +114,14 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
-    velocity_profile = create_linear_velocity_profile(total_duration=4, ramp_time=1, n_samples=1000)
-    trajectory = resample_path(pose_waypoints, cube_waypoints, velocity_profile, total_time=2, sampling_rate=int(1/DT))
-    bezier_curve, velocity_curve, acceleration_curve = create_bezier_trajectory(trajectory, t_max=2)
-    
-    
-    
+    # Create a trajectory
+    trajs = create_trajectory(pose_waypoints, cube_waypoints, total_time=2, ramp_time=1, sampling_rate=int(1/DT))
+
+    # Simulate the trajectory
+    sim.setqsim(robot.q0.copy())
+
+    tcur = 0.
+    total_time = 5.
+    while tcur < total_time:
+        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+        tcur += DT
