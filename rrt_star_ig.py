@@ -256,6 +256,7 @@ class RRTStarIG(RRTStar):
             if path is None:
                 return None
             shortcut_optimized = self.path_shortcut(path, shortcut_iterations, verbose)
+            self.clear_paths()
             if verbose:
                 print("=====================================")
             return shortcut_optimized
