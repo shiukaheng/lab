@@ -7,29 +7,72 @@ Created on Wed Sep  6 15:32:51 2023
 """
 
 import numpy as np
-from RobotSensors import RobotSensors
 from bezier import Bezier
 
 import numpy as np
 import scipy.interpolate
+from config import LEFT_HAND, RIGHT_HAND
 
 from pid_controller import PIDController
 from setup_pybullet import Simulation
-from tools import setupwithmeshcat
+from tools import getcubeplacement, setupwithmeshcat
+import pinocchio as pin
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
-Kp = 5.               # proportional gain (P of PD)
+Kp = 300.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
-def controllaw(sim: Simulation, robot, trajs, tcurrent, cube, pid:PIDController, robot_sensors:RobotSensors):
-    position, velocity, acceleration = trajs
-    position = position(tcurrent)
-    # ref_vel = velocity(tcurrent)
-    # cur_vel = robot_sensors.readJointVel()
-    # output = pid.update(1, ref_vel, cur_vel)
-    # print(ref_vel)
-    # sim.step(output)
-    sim.setqsim(position)
+def transformation_matrix_from_quaternion(pos_vec, quat):
+    """
+    Construct a transformation matrix from a position vector and a quaternion.
+
+    :param pos_vec: A 3D position vector.
+    :param quat: A quaternion [x, y, z, w].
+    :return: A 4x4 homogeneous transformation matrix.
+    """
+    rot_matrix = pin.Quaternion(quat[3], quat[0], quat[1], quat[2]).toRotationMatrix()
+    transformation_matrix = np.eye(4)
+    transformation_matrix[:3, :3] = rot_matrix
+    transformation_matrix[:3, 3] = pos_vec
+    return transformation_matrix
+
+def transformation_matrix_from_link_state(link_state):
+    return transformation_matrix_from_quaternion(link_state[0], link_state[1])
+
+def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
+    pos_traj, vel_traj, acc_traj = trajs
+
+    qr, vqr, aqr = pos_traj(tcurrent), vel_traj(tcurrent), acc_traj(tcurrent)
+    q, vq = sim.getpybulletstate()
+    M = pin.crba(robot.model, robot.data, q)
+    h = pin.nle(robot.model, robot.data, q, vq)
+
+    left_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('LARM_EFF'))
+    right_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('RARM_EFF'))
+    gripping_force = 50
+    oMl = robot.data.oMf[robot.model.getFrameId(LEFT_HAND)]
+    oMr = robot.data.oMf[robot.model.getFrameId(RIGHT_HAND)]
+    oMc = getcubeplacement(cube)
+    lMc = np.linalg.inv(oMl) @ oMc
+    lMr = np.linalg.inv(oMr) @ oMc
+    # We need to transform the cube position into the end effector frame, also cropping the last element (homogeneous coordinate)
+    cube_pos_in_left_end_effector_frame = lMc[:3, 3]
+    cube_pos_in_right_end_effector_frame = lMr[:3, 3]
+    print(cube_pos_in_left_end_effector_frame, cube_pos_in_right_end_effector_frame)
+    # right_end_effector_pos = np.array(sim.getLinkState('RARM_EFF')[0])
+    # cube_pos = np.array(sim.p.getBasePositionAndOrientation(sim.cubeId)[0])
+    # left_end_force_dir = (cube_pos - left_end_effector_pos) / np.linalg.norm(cube_pos - left_end_effector_pos)
+    # right_end_force_dir = (cube_pos - right_end_effector_pos) / np.linalg.norm(cube_pos - right_end_effector_pos)
+    # print(left_end_force_dir, right_end_force_dir)
+    # left_force_6d = np.concatenate((left_end_force_dir, np.zeros(3)))
+    # right_force_6d = np.concatenate((right_end_force_dir, np.zeros(3)))
+
+    # Probably we are having the wrong frame. The force vector should be in the end effector frame, not the world frame.
+    # gripping_tau = left_end_effector_jacobian.T @ left_force_6d * gripping_force + right_end_effector_jacobian.T @ right_force_6d * gripping_force
+
+    aqd = aqr - Kp * (q - qr) - Kv * (vq - vqr)
+    tau = M @ aqd + h
+    sim.step(tau)
 
 
 def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
@@ -125,8 +168,6 @@ if __name__ == "__main__":
 
     sim.setqsim(q0)
 
-    pid = PIDController(Kp, 0, Kv)
-    robot_sensors = RobotSensors(sim, robot)
     while tcur < total_time:
-        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube, pid, robot_sensors)
+        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
         tcur += DT
