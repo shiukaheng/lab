@@ -53,7 +53,7 @@ if __name__ == "__main__":
     from inverse_geometry import computeqgrasppose
 
     # Seed the random number generator
-    np.random.seed(42)
+    # np.random.seed(42)
     
     robot, cube, viz = setupwithmeshcat()
     

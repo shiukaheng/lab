@@ -196,7 +196,7 @@ class RRTStar(KDTree):
                     return True, samples[i-1]
         return False, end
     
-    @cache_results
+    # @cache_results
     def solve(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> Optional[List[RRTStarNode]]:
         # Sample until we find a path to the goal
         if verbose:

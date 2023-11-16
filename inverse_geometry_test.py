@@ -83,7 +83,6 @@ def success(robot, cube, q):
     collision_ok = not collision(robot, q)
     joint_limits_ok = not jointlimitsviolated(robot, q)
     effector_distance_ok = effector_distance_cost(robot, cube) < 0.05
-    min_distance_ok = distanceToObstacle(robot, q)
     issue = ""
     if not (collision_ok and joint_limits_ok and effector_distance_ok):
         issue = f"Collision: {'✅' if collision_ok else '❌'}, Joint Limits: {'✅' if joint_limits_ok else '❌'}, Effector Distance Cost: {'✅' if effector_distance_ok else '❌'}, Colliding Pairs: {get_colliding_pairs(robot, q)}"

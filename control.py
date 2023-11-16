@@ -19,7 +19,7 @@ from tools import getcubeplacement, setupwithmeshcat
 import pinocchio as pin
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
-Kp = 5000.               # proportional gain (P of PD)
+Kp = 6000.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
 def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
