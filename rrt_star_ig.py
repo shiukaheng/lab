@@ -45,6 +45,7 @@ class RRTStarIG(RRTStar):
                     goal_seeking_radius: Optional[float] = 1.0,
                     q_init: Optional[np.ndarray] = None,
                     shortcut_tolerance: float = 0.05,
+                    max_neighbours: Optional[int] = 5,
                     ):
             super().__init__(
                 dimensions=dimensions,
@@ -66,6 +67,15 @@ class RRTStarIG(RRTStar):
             self.initial_node.q = self.q_init
             self.meshcat_paths = []
             self.shortcut_tolerance = shortcut_tolerance
+            self.max_neighbours = max_neighbours
+
+    def sample_random_point(self):
+        if (self.goal is not None) and (np.random.uniform() < self.bias):
+            return self.goal, True
+        # elif self.goal_node is not None and self.goal_node.parent is not None: # Informed RRT*
+        else:
+            new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
+            return new_point, False
 
     def plot_segment(self, start: RRTStarIGNode, end: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
@@ -144,6 +154,9 @@ class RRTStarIG(RRTStar):
         # Lets filter away all neighbors that are not reachable from the new point
         neighbors_expanded = [(n, self.check_edge_collision(n.point, new_node.point, n.q)) for n in neighbors if n != new_node]
         neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
+        if self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours:
+            # Sort the neighbors by distance to the new node and only keep the closest ones
+            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_node.point))[:self.max_neighbours]
 
         best_cost = np.inf
         best_parent = None
@@ -273,12 +286,12 @@ class RRTStarIG(RRTStar):
         original_length = self.expanded_path_length(expanded_path)
         for i in range(iterations):
             expanded_path = self.path_shortcut_once(expanded_path)
-            print(f"✨ Optimizing path: {int((i+1)/iterations*100)}%, path length reduction: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%", end="\r")
+            print(f"✨ Local path optimization: {int((i+1)/iterations*100)}%, length reduced by {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%", end="\r")
             if len(expanded_path) <= 2:
                 print()
-                print("✨ Shortcut path reached minimum length, stopping")
+                print("✨ Path reached minimum length, stopping") # Should not happen
                 break
-        print(f"✅ Path optimized, path length reduction: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%         ")
+        print(f"✅ Local path optimization: Done! Path length reduced by: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%            ")
         return expanded_path
         
     def handle_goal(self, new_clamped_point, new_node, current_cost):

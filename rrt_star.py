@@ -210,14 +210,18 @@ class RRTStar(KDTree):
                 print("❌ Exploring search space: No path found!", flush=True)
         else:
             print("✅ Exploring search space: Path found!          ", flush=True)
+            # Lets get the path length
+            _, original_path_cost = self.get_path(self.goal_node)
             # Now, lets sample some more to see if we can find a better path
             for i in range(post_goal_iterations):
                 self.sample()
                 if verbose:
-                    print(f"✨ Refining path: Iteration {i}/{post_goal_iterations}", end="\r", flush=True)
+                    # Lets calculate the new path length
+                    _, new_path_cost = self.get_path(self.goal_node)
+                    print(f"✨ Global path optimization: {int((i+1)/post_goal_iterations*100)}%, length reduced by {int((original_path_cost - new_path_cost)/original_path_cost*100)}%     ", end="\r", flush=True)
             if verbose:
                 if post_goal_iterations > 0:
-                    print("✅ Refining path: Done!          ", flush=True)
+                    print(f"✅ Global path optimization: Done! Path length reduced by {int((original_path_cost - new_path_cost)/original_path_cost*100)}%       ", flush=True)
             
         # Now, lets get the path
         path, _ = self.get_path(self.goal_node)
