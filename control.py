@@ -7,26 +7,29 @@ Created on Wed Sep  6 15:32:51 2023
 """
 
 import numpy as np
+from RobotSensors import RobotSensors
 from bezier import Bezier
 
 import numpy as np
 import scipy.interpolate
 
 from pid_controller import PIDController
+from setup_pybullet import Simulation
+from tools import setupwithmeshcat
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
-Kp = 300.               # proportional gain (P of PD)
+Kp = 5.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
-pid = PIDController(Kp, 0, Kv)
-
-def controllaw(sim, robot, trajs, tcurrent, cube):
+def controllaw(sim: Simulation, robot, trajs, tcurrent, cube, pid:PIDController, robot_sensors:RobotSensors):
     position, velocity, acceleration = trajs
-    q = position.evaluate(tcurrent)
-    vq = velocity.evaluate(tcurrent)
-    aq = acceleration.evaluate(tcurrent)
-    
-    sim.step(aq)
+    position = position(tcurrent)
+    # ref_vel = velocity(tcurrent)
+    # cur_vel = robot_sensors.readJointVel()
+    # output = pid.update(1, ref_vel, cur_vel)
+    # print(ref_vel)
+    # sim.step(output)
+    sim.setqsim(position)
 
 
 def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
@@ -90,10 +93,10 @@ def create_trajectory(waypoints, cube_waypoints, total_time, ramp_time, sampling
     velocity_profile = create_linear_velocity_profile(total_time, ramp_time, n_samples=1000)
 
     # Resample path according to velocity profile
-    trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, total_time, sampling_rate)
-
+    trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
+ 
     # Create Bezier curve from trajectory points
-    bezier_curve, velocity_curve, acceleration_curve = create_bezier_trajectory(trajectory, t_max=total_time)
+    bezier_curve, velocity_curve, acceleration_curve = create_bezier_trajectory(trajectory, t_max=total_time) # Relying on Bezier t_max to stretch the trajectory to the desired duration
 
     return bezier_curve, velocity_curve, acceleration_curve
 
@@ -103,8 +106,8 @@ if __name__ == "__main__":
     from config import DT
     
     robot, sim, cube, viz = setupwithpybulletandmeshcat()
-    
     # robot, cube, viz = setupwithmeshcat()
+    
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
     from inverse_geometry import computeqgrasppose
     from path import computepathwithcubepos, displaypath
@@ -114,14 +117,16 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
-    # Create a trajectory
-    trajs = create_trajectory(pose_waypoints, cube_waypoints, total_time=2, ramp_time=1, sampling_rate=int(1/DT))
-
-    # Simulate the trajectory
-    sim.setqsim(robot.q0.copy())
-
     tcur = 0.
-    total_time = 5.
+    total_time = 4.
+
+    # Create a trajectory
+    trajs = create_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, sampling_rate=int(1/DT))
+
+    sim.setqsim(q0)
+
+    pid = PIDController(Kp, 0, Kv)
+    robot_sensors = RobotSensors(sim, robot)
     while tcur < total_time:
-        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube, pid, robot_sensors)
         tcur += DT

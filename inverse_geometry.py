@@ -34,12 +34,6 @@ Ideas:
 - Reduced search space by setting head joints to constant
 '''
 
-def remove_waist(q): # Remove first joint
-    return q[1:]
-
-def add_waist(q, waist=0): # Add first joint
-    return np.insert(q, 0, waist)
-
 def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     '''Return a collision free configuration grasping a cube at a specific location and a success flag'''
 
