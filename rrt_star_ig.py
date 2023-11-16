@@ -12,6 +12,35 @@ from inverse_geometry_utils import generate_cube_pos, to_full
 # Goal 2: Provide better initial guess for inverse geometry
 # Goal 3: Output interpolated_frames parts of the path too
 
+def segment_dir(points, tolerance=0.01):
+    if len(points) < 2:
+        return [points]  # If there's only one point, return it as a single segment.
+
+    segments = []
+    current_segment = [points[0]]
+    last_dir = None
+
+    for i in range(1, len(points)):
+        # Calculate slope
+        diff =  points[i][0] - points[i-1][0]
+        current_dir = diff / np.linalg.norm(diff)
+
+        # Check if direction has changed
+        if last_dir is not None and current_dir.dot(last_dir) < (1 - tolerance):
+            # print("Direction changed from {} to {}".format(last_dir, current_dir))
+            segments.append(current_segment)
+            current_segment = [points[i-1]]
+
+        # print("Adding point {} to segment {}".format(points[i], len(segments)))
+
+        current_segment.append(points[i])
+        last_dir = current_dir
+
+    segments.append(current_segment)  # Append the last segment
+    # Remove the first element of each segment if its not the first segment
+    segments = [segment[1:] if i > 0 else segment for i, segment in enumerate(segments)]
+    return segments
+
 from rrt_star import *
 from rrt_star import RRTStarNode
 import meshcat.geometry as g
@@ -274,12 +303,30 @@ class RRTStarIG(RRTStar):
         return expanded_path
     
     def path_shortcut_once(self, expanded_path):
-        # Select first random point
-        first_index = np.random.randint(0, len(expanded_path) - 1)
-        # Select the offset from the first point [1, len - 1]
-        second_index_offset = np.random.randint(1, len(expanded_path) - 1)
-        # Select the second point
-        second_index = (first_index + second_index_offset) % len(expanded_path)
+        segments = segment_dir(expanded_path)
+        if len(segments) <= 1:
+            return expanded_path
+        segment_weights = [len(s) for s in segments]
+        # Select first random segment
+        # first_segment = np.random.randint(0, len(segments) - 1)
+        first_segment = np.random.choice(len(segments), p=segment_weights/np.sum(segment_weights))
+        # Set the selected first segment weight to 0
+        segment_weights[first_segment] = 0
+        # Select the second random segment
+        second_segment = np.random.choice(len(segments), p=segment_weights/np.sum(segment_weights))
+        # Select an index for the first segment
+        if len(segments[first_segment]) >= 2:
+            first_segment_index = np.random.randint(0, len(segments[first_segment]) - 1)
+        else:
+            first_segment_index = 0
+        # Select an index for the second segment
+        if len(segments[second_segment]) >= 2:
+            second_segment_index = np.random.randint(0, len(segments[second_segment]) - 1)
+        else:
+            second_segment_index = 0
+        # Calculate the actual indices
+        first_index = sum([len(s) for s in segments[:first_segment]]) + first_segment_index
+        second_index = sum([len(s) for s in segments[:second_segment]]) + second_segment_index
         # Sort the indices
         first_index, second_index = sorted([first_index, second_index])
         # Lets retrieve the points
@@ -298,7 +345,7 @@ class RRTStarIG(RRTStar):
         after = expanded_path[second_index:]
         # Now we can replace the discarded part with the interpolated path
         return before + interpolated + after
-    
+
     def expanded_path_length(self, expanded_path):
         return sum([np.linalg.norm(p[0] - q[0]) for p, q in zip(expanded_path[:-1], expanded_path[1:])])
     

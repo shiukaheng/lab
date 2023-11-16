@@ -161,3 +161,4 @@ cython_debug/
 computepathwithcubepos_cache.pkl
 computepath_cache.pkl
 .gitignore
+solve_cache.pkl
