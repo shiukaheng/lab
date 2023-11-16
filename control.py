@@ -22,23 +22,6 @@ import pinocchio as pin
 Kp = 3000.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
-def transformation_matrix_from_quaternion(pos_vec, quat):
-    """
-    Construct a transformation matrix from a position vector and a quaternion.
-
-    :param pos_vec: A 3D position vector.
-    :param quat: A quaternion [x, y, z, w].
-    :return: A 4x4 homogeneous transformation matrix.
-    """
-    rot_matrix = pin.Quaternion(quat[3], quat[0], quat[1], quat[2]).toRotationMatrix()
-    transformation_matrix = np.eye(4)
-    transformation_matrix[:3, :3] = rot_matrix
-    transformation_matrix[:3, 3] = pos_vec
-    return transformation_matrix
-
-def transformation_matrix_from_link_state(link_state):
-    return transformation_matrix_from_quaternion(link_state[0], link_state[1])
-
 def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
     pos_traj, vel_traj, acc_traj = trajs
 
@@ -54,7 +37,7 @@ def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
     left_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('LARM_EFF'))
     right_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('RARM_EFF'))
     
-    gripping_force = 200
+    gripping_force = 150
 
     left_force_6d = np.array([0, -1, 0, 0, 0, -0.03])
     right_force_6d = np.array([0, -1, 0, 0, 0, 0.03])

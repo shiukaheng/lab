@@ -66,6 +66,7 @@ class RRTStarIG(RRTStar):
             self.q_init = q_init if q_init is not None else robot.q0.copy()
             self.initial_node.q = self.q_init
             self.meshcat_paths = []
+            self.meshcast_best_paths = []
             self.shortcut_tolerance = shortcut_tolerance
             self.max_neighbours = max_neighbours
 
@@ -77,19 +78,39 @@ class RRTStarIG(RRTStar):
             new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
             return new_point, False
 
-    def plot_segment(self, start: RRTStarIGNode, end: RRTStarIGNode):
+    def plot_node_segment(self, start_node: RRTStarIGNode, end_node: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
         if self.viz is None:
             return
-        path = f"/path_{len(self.meshcat_paths)}"
+        path = f"/path_{hash(start_node)}_{hash(end_node)}"
         # print(f"Start: {start.point}, End: {end.point}")
-        self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start.point, end.point]).transpose()), g.MeshBasicMaterial(color=0xff0000)))
+        self.plot_segment(start_node.point, end_node.point, path)
         self.meshcat_paths.append(path)
+
+    def plot_segment(self, start, end, path, color=0xff0000):
+        self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start, end]).transpose()), g.MeshBasicMaterial(color=color, wireframeLinewidth=5)))
+
+    def plot_expanded_path(self, expanded_path):
+        if self.viz is None:
+            return
+        # Clear existing best path
+        for path in self.meshcast_best_paths:
+            self.viz[path].delete()
+        expanded_cube_path = [p[0] for p in expanded_path]
+        self.viz["/expanded_path"].set_object(g.Line(g.PointsGeometry(np.array(expanded_cube_path).transpose()), g.MeshBasicMaterial(color=0x00ff00, wireframeLinewidth=5)))
+        self.meshcast_best_paths.append("/expanded_path")
+
+    def plot_best_goal_path(self):
+        path, cost = self.get_path(self.goal_node)
+        self.plot_expanded_path(path)
 
     def clear_paths(self):
         for path in self.meshcat_paths:
             self.viz[path].delete()
+        for path in self.meshcast_best_paths:
+            self.viz[path].delete()
         self.meshcat_paths = []
+        self.meshcast_best_paths = []
 
     def sample(self) -> np.ndarray:
         # Lets find the nearest neighbor to target
@@ -146,7 +167,7 @@ class RRTStarIG(RRTStar):
         child.parent = parent
         child.q = collision_return[2]
         child.interpolated_frames = collision_return[3]
-        self.plot_segment(parent, child)
+        self.plot_node_segment(parent, child)
 
     def find_reachable_neighbours(self, new_node):
         neighbors = self.query_spheroid(new_node.point, self.neighbor_radius)
@@ -287,6 +308,7 @@ class RRTStarIG(RRTStar):
         for i in range(iterations):
             expanded_path = self.path_shortcut_once(expanded_path)
             print(f"✨ Local path optimization: {int((i+1)/iterations*100)}%, length reduced by {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%", end="\r")
+            self.plot_expanded_path(expanded_path)
             if len(expanded_path) <= 2:
                 print()
                 print("✨ Path reached minimum length, stopping") # Should not happen
