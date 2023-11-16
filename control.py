@@ -19,7 +19,7 @@ from tools import getcubeplacement, setupwithmeshcat
 import pinocchio as pin
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
-Kp = 300.               # proportional gain (P of PD)
+Kp = 3000.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
 def transformation_matrix_from_quaternion(pos_vec, quat):
@@ -47,31 +47,23 @@ def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
     M = pin.crba(robot.model, robot.data, q)
     h = pin.nle(robot.model, robot.data, q, vq)
 
+    # Update the robot's geometry placements based on the current configuration q
+    pin.updateGeometryPlacements(robot.model, robot.data, robot.collision_model, robot.collision_data, q)
+    pin.updateFramePlacements(robot.model, robot.data)
+
     left_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('LARM_EFF'))
     right_end_effector_jacobian = pin.computeFrameJacobian(robot.model, robot.data, q, robot.model.getFrameId('RARM_EFF'))
-    gripping_force = 50
-    oMl = robot.data.oMf[robot.model.getFrameId(LEFT_HAND)]
-    oMr = robot.data.oMf[robot.model.getFrameId(RIGHT_HAND)]
-    oMc = getcubeplacement(cube)
-    lMc = np.linalg.inv(oMl) @ oMc
-    lMr = np.linalg.inv(oMr) @ oMc
-    # We need to transform the cube position into the end effector frame, also cropping the last element (homogeneous coordinate)
-    cube_pos_in_left_end_effector_frame = lMc[:3, 3]
-    cube_pos_in_right_end_effector_frame = lMr[:3, 3]
-    print(cube_pos_in_left_end_effector_frame, cube_pos_in_right_end_effector_frame)
-    # right_end_effector_pos = np.array(sim.getLinkState('RARM_EFF')[0])
-    # cube_pos = np.array(sim.p.getBasePositionAndOrientation(sim.cubeId)[0])
-    # left_end_force_dir = (cube_pos - left_end_effector_pos) / np.linalg.norm(cube_pos - left_end_effector_pos)
-    # right_end_force_dir = (cube_pos - right_end_effector_pos) / np.linalg.norm(cube_pos - right_end_effector_pos)
-    # print(left_end_force_dir, right_end_force_dir)
-    # left_force_6d = np.concatenate((left_end_force_dir, np.zeros(3)))
-    # right_force_6d = np.concatenate((right_end_force_dir, np.zeros(3)))
+    
+    gripping_force = 200
+
+    left_force_6d = np.array([0, -1, 0, 0, 0, -0.03])
+    right_force_6d = np.array([0, -1, 0, 0, 0, 0.03])
 
     # Probably we are having the wrong frame. The force vector should be in the end effector frame, not the world frame.
-    # gripping_tau = left_end_effector_jacobian.T @ left_force_6d * gripping_force + right_end_effector_jacobian.T @ right_force_6d * gripping_force
+    gripping_tau = left_end_effector_jacobian.T @ left_force_6d * gripping_force + right_end_effector_jacobian.T @ right_force_6d * gripping_force
 
     aqd = aqr - Kp * (q - qr) - Kv * (vq - vqr)
-    tau = M @ aqd + h
+    tau = M @ aqd + h + gripping_tau
     sim.step(tau)
 
 
@@ -136,20 +128,19 @@ def create_trajectory(waypoints, cube_waypoints, total_time, ramp_time, sampling
     velocity_profile = create_linear_velocity_profile(total_time, ramp_time, n_samples=1000)
 
     # Resample path according to velocity profile
-    trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
- 
+    pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
+    # cube_trajectory = resample_path(cube_waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
     # Create Bezier curve from trajectory points
-    bezier_curve, velocity_curve, acceleration_curve = create_bezier_trajectory(trajectory, t_max=total_time) # Relying on Bezier t_max to stretch the trajectory to the desired duration
-
-    return bezier_curve, velocity_curve, acceleration_curve
+    pose_bezier_curve, pose_velocity_curve, pose_acceleration_curve = create_bezier_trajectory(pose_trajectory, t_max=total_time) # Relying on Bezier t_max to stretch the trajectory to the desired duration
+    return pose_bezier_curve, pose_velocity_curve, pose_acceleration_curve
 
 if __name__ == "__main__":
         
     from tools import setupwithpybulletandmeshcat, rununtil
     from config import DT
     
-    robot, sim, cube, viz = setupwithpybulletandmeshcat()
-    # robot, cube, viz = setupwithmeshcat()
+    # robot, sim, cube, viz = setupwithpybulletandmeshcat()
+    robot, cube, viz = setupwithmeshcat()
     
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
     from inverse_geometry import computeqgrasppose
@@ -160,8 +151,10 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
+    robot, sim, cube, viz = setupwithpybulletandmeshcat()
+
     tcur = 0.
-    total_time = 4.
+    total_time = 3.
 
     # Create a trajectory
     trajs = create_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, sampling_rate=int(1/DT))

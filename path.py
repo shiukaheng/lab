@@ -31,7 +31,7 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
     ).solve(max_iterations=100, post_goal_iterations=50, shortcut_iterations=100)
     return [path[1] for path in path]
 
-@cache_results
+# @cache_results
 def computepathwithcubepos(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz):
     path = RRTStarIG(
         robot, cube, viz,
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     from inverse_geometry import computeqgrasppose
 
     # Seed the random number generator
-    # np.random.seed(42)
+    np.random.seed(42)
     
     robot, cube, viz = setupwithmeshcat()
     
