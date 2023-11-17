@@ -276,6 +276,7 @@ class RRTStarIG(RRTStar):
                     return True, samples[i-1], start_q, interpolated
         return False, end, start_q, interpolated
     
+    @cache_results
     def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, shortcut_iterations: int = 500, verbose=True) -> List[RRTStarNode] | None:
         try:
             if verbose:

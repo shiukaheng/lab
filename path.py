@@ -6,12 +6,8 @@ Created on Thu Sep 21 11:44:32 2023
 @author: stonneau
 """
 
-from typing import Optional
-import pinocchio as pin
-import numpy as np
 from numpy.linalg import pinv
 
-from config import LEFT_HAND, RIGHT_HAND
 import time
 
 from rrt_star_ig import *
