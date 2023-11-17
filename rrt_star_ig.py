@@ -7,6 +7,7 @@ from config import LEFT_HAND, RIGHT_HAND
 import time
 from inverse_geometry import computeqgrasppose
 from inverse_geometry_utils import generate_cube_pos, to_full
+import meshcat.transformations as tf
 
 # Goal 1: Check collision using inverse geometry
 # Goal 2: Provide better initial guess for inverse geometry
@@ -112,11 +113,17 @@ class RRTStarIG(RRTStar):
             return
         path = f"/path_{hash(start_node)}_{hash(end_node)}"
         # print(f"Start: {start.point}, End: {end.point}")
-        self.plot_segment(start_node.point, end_node.point, path)
+        self.plot_graph_segment(start_node.point, end_node.point, path)
         self.meshcat_paths.append(path)
 
-    def plot_segment(self, start, end, path, color=0xff0000):
+    def plot_graph_segment(self, start, end, path, color=0xff0000):
         self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start, end]).transpose()), g.MeshBasicMaterial(color=color, wireframeLinewidth=5)))
+
+    def plot_explore_segment(self, start, end, color=0xff00ff):
+        self.viz["/explore"].set_object(g.Line(g.PointsGeometry(np.array([start, end]).transpose()), g.MeshBasicMaterial(color=color, wireframeLinewidth=5)))
+
+    def clear_explore_segment(self):
+        self.viz["/explore"].delete()
 
     def plot_expanded_path(self, expanded_path):
         if self.viz is None:
@@ -132,6 +139,13 @@ class RRTStarIG(RRTStar):
         path, cost = self.get_path(self.goal_node)
         self.plot_expanded_path(path)
 
+    def plot_exploration_point(self, point):
+        self.viz["/exploration_point"].set_object(g.Sphere(0.01), g.MeshBasicMaterial(color=0x00ffff))
+        self.viz["/exploration_point"].set_transform(tf.translation_matrix(point))
+
+    def clear_exploration_point(self):
+        self.viz["/exploration_point"].delete()
+
     def clear_paths(self):
         for path in self.meshcat_paths:
             self.viz[path].delete()
@@ -139,6 +153,8 @@ class RRTStarIG(RRTStar):
             self.viz[path].delete()
         self.meshcat_paths = []
         self.meshcast_best_paths = []
+        self.clear_explore_segment()
+        self.clear_exploration_point()
 
     def sample(self) -> np.ndarray:
         # Lets find the nearest neighbor to target
@@ -157,12 +173,16 @@ class RRTStarIG(RRTStar):
             self.goal_node.q = new_q
             self.goal_node.interpolated_frames = interpolated
             return self.goal_node
-        
-        # Now that we have a new point, lets insert it into the kd-tree
-        new_node = self.insert_with_solved_q(new_point_clamped, new_q)
 
         # Search for neighbors within a certain radius and see if we can find a better parent
-        neighbors_in_reach, best_parent, best_neighbor_collision_return = self.find_reachable_neighbours(new_node)
+        neighbors_in_reach, best_parent, best_neighbor_collision_return = self.find_reachable_neighbours(new_point_clamped)
+
+        if best_parent is None:
+            # We did not find any neighbors within reach, lets try again with a new sample
+            return self.sample()
+
+        # Now that we have a new point, lets insert it into the kd-tree
+        new_node = self.insert_with_solved_q(new_point_clamped, new_q)
         
         # Now that we have a parent, lets update the node
         self.link_nodes(new_node, best_parent, best_neighbor_collision_return)
@@ -197,15 +217,15 @@ class RRTStarIG(RRTStar):
         child.interpolated_frames = collision_return[3]
         self.plot_node_segment(parent, child)
 
-    def find_reachable_neighbours(self, new_node):
-        neighbors = self.query_spheroid(new_node.point, self.neighbor_radius)
+    def find_reachable_neighbours(self, new_point):
+        neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
         # Lets filter away all neighbors that are not reachable from the new point
-        neighbors_expanded = [(n, self.check_edge_collision(n.point, new_node.point, n.q)) for n in neighbors if n != new_node]
+        neighbors_expanded = [(n, self.check_edge_collision(n.point, new_point, n.q)) for n in neighbors]
         neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
         if self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours:
             # Sort the neighbors by distance to the new node and only keep the closest ones
-            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_node.point))[:self.max_neighbours]
+            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbours]
 
         best_cost = np.inf
         best_parent = None
@@ -217,8 +237,6 @@ class RRTStarIG(RRTStar):
                 best_parent = neighbor
                 best_neighbor_collision_return = neighbor_collision_return
 
-        if best_parent is None:
-            raise RuntimeError("No valid parent found, increase neighbor radius. Should implement a better way to handle this. Cant delete node in KDTree, so we have to handle other way")
         return neighbors_in_reach, best_parent, best_neighbor_collision_return
 
     def insert_with_solved_q(self, new_point_clamped, new_q):
@@ -252,12 +270,14 @@ class RRTStarIG(RRTStar):
         return nearest_node,new_point_clamped,new_q,reached_goal,interpolated
     
     def check_point_collision(self, point: np.ndarray, start_q: Optional[np.ndarray]=None) -> bool:
+        self.plot_exploration_point(point)
         if start_q is None:
             start_q = self.q_init
         q, success = computeqgrasppose(self.robot, start_q, self.cube, generate_cube_pos(*point), self.viz)
         return not success, q
     
     def check_edge_collision(self, start: np.ndarray, end: np.ndarray, start_q: Optional[np.ndarray]=None) -> (bool, Optional[np.ndarray], Optional[np.ndarray], List[np.ndarray]): # (collision, best end, best end's q)
+        self.plot_explore_segment(start, end)
         # Sample along the edge and check for collisions using linspace, from start to end, return last non-collision sample
         distance = np.linalg.norm(end - start)
         samples = np.linspace(start, end, int(self.collision_samples * distance / self.step_size))
