@@ -51,6 +51,22 @@ def resample_path(waypoints, cube_waypoints, velocity_profile, n_samples):
 
     return np.array(joint_trajectory).T
 
+def sample_bezier_with_velocity(bezier, velocity_profile, n_samples):
+    # Normalize the velocity profile
+    t_norm = np.linspace(0, 1, len(velocity_profile))
+    velocity_interp = scipy.interpolate.interp1d(t_norm, velocity_profile, kind='linear', fill_value="extrapolate")
+
+    # Integrate velocity profile to get position profile
+    position_profile = np.cumsum(velocity_interp(np.linspace(0, 1, n_samples)) / n_samples)
+
+    # Normalize the position profile to [0, 1]
+    position_profile = position_profile / position_profile[-1]
+
+    # Sample the Bezier curve based on the position profile
+    bezier_samples = [bezier(t) for t in position_profile]
+
+    return np.array(bezier_samples)
+
 def create_bezier_trajectory(trajectory, t_max):
     # Create Bezier curve from trajectory points
     bezier_curve = Bezier(trajectory, t_max=t_max)
@@ -98,13 +114,16 @@ def uniform_resample(points, n_samples):
     return resampled_points
 
 # @cache_results
-def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100):
-    # ref_lin_traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=ramp_time, n_samples=n_bezier_control_points)
-    # ref_lin_traj = resample_paeth(pose_waypoints, cube_waypoints, np.ones(len(pose_waypoints)), n_bezier_control_points)
+def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100, n_bezier_samples=1000):
     ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
     opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
     opt_pose_waypoints = opt.optimize(ref_lin_traj)
-    pq = Bezier(opt_pose_waypoints, t_max=total_time)
+    pq = Bezier(opt_pose_waypoints, t_max=1)
+    # Sample the Bezier curve
+    pose_waypoints = sample_bezier_with_velocity(pq, create_linear_velocity_profile(total_time, ramp_time, n_bezier_samples), n_bezier_samples)
+    # Create another bezier curve from the sampled points
+    pq = Bezier(pose_waypoints, t_max=total_time) 
     vq = pq.derivative(1)
     aq = pq.derivative(2)
+    
     return pq, vq, aq

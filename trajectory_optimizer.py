@@ -2,11 +2,12 @@ import time
 import numpy as np
 from bezier import Bezier
 import pinocchio as pin
-from scipy.optimize import fmin_bfgs, fmin_l_bfgs_b
+from scipy.optimize import fmin_bfgs, fmin_l_bfgs_b, fmin_slsqp
 import meshcat.geometry as g
-from inverse_geometry_utils import distanceToObstacle
+from inverse_geometry_utils import distanceToObstacle, selfCollisionDistance
 
 from config import LEFT_HAND, RIGHT_HAND
+from tools import jointlimitscost
 
 class TrajectoryBezier:
     def __init__(self, robot, cube, traj_cp):
@@ -27,6 +28,7 @@ class TrajectoryOptimizer:
         self.meshcat_path = "/trajectory_optimizer"
         self.begin = None
         self.end = None
+        self.starting_cube_path = None
 
     def cost(self, opt_params): # Trajectory control points will be in the shape of q * frames (flattened)
         trajectory = self.opt_params_to_trajectory(opt_params)
@@ -34,20 +36,38 @@ class TrajectoryOptimizer:
         b = Bezier(trajectory, t_max=1)
         # Get the trajectory evaluation points
         samples = np.linspace(0, 1, self.evaluation_points)
-        cost = 0
+        costs = []
         for sample in samples:
             # Get the current frame
+            sample_cost = 0
             q = b(sample)
-            # # Get the current grip transform
-            current_grip_transform = self.get_grip_transform(q)
-            # Get the difference between the current grip transform and the reference grip transform
-            cost += np.linalg.norm(current_grip_transform.homogeneous - self.reference_grip_transform.homogeneous)
+            # Get the current grip transform
+            sample_cost += self.illegal_grip_penalty(q) ** 2 * 150
             # Obstacle cost
-            cost += max(0.05-distanceToObstacle(self.robot, q, computeFrameForwardKinematics=False), 0) ** 2 * 100
-        return cost / self.evaluation_points
+            sample_cost += self.obstacle_distance_penalty(q) * 70
+            # Joint limits cost
+            sample_cost += jointlimitscost(self.robot, q) * 1000
+            # Add the cost to the list
+            costs.append(sample_cost)
+        costs = np.array(costs)
+        # MSE of costs array
+        final_cost = np.mean(costs)
+        final_cost += self.cube_path_distance(cube_trajectory, self.starting_cube_path) * 0.01
+        return final_cost
+
+    def obstacle_distance_penalty(self, q, dist_offset=0.2, self_collision_dist_offset=0.2
+                                  ):
+        raw_distance = distanceToObstacle(self.robot, q, computeFrameForwardKinematics=False)
+        raw_self_collision_distance = selfCollisionDistance(self.robot, q, computeFrameForwardKinematics=False, computeGeometryPlacements=False)
+        return max(-raw_distance + dist_offset, -raw_self_collision_distance + self_collision_dist_offset, 0)
+
+    def illegal_grip_penalty(self, q):
+        current_grip_transform = self.calc_grip_transform(q)
+        legal_grip_cost = np.linalg.norm(current_grip_transform.homogeneous - self.reference_grip_transform.homogeneous)
+        return legal_grip_cost
     
     def init_trajectory_to_opt_params_converter(self, traj_cp):
-        self.reference_grip_transform = self.get_grip_transform(traj_cp[0])
+        self.reference_grip_transform = self.calc_grip_transform(traj_cp[0])
         self.begin = traj_cp[0]
         self.end = traj_cp[-1]
         # Remove the first and last control points
@@ -82,11 +102,13 @@ class TrajectoryOptimizer:
         try:
             assert len(traj_cp) > 2
             self.init_trajectory_to_opt_params_converter(traj_cp)
+            self.starting_cube_path = self.get_cube_path(traj_cp)
             opt_params = self.trajectory_to_opt_params(traj_cp)
-            opt_params = fmin_bfgs(self.cost, opt_params, callback=self.opt_callback, maxiter=30)
+            # opt_params = fmin_bfgs(self.cost, opt_params, callback=self.opt_callback, maxiter=30)
+            opt_params = fmin_slsqp(self.cost, opt_params, iter=15, callback=self.opt_callback)
             opt_traj = self.opt_params_to_trajectory(opt_params)
             self.plot_cube_path(opt_traj)
-            time.sleep(5)
+            time.sleep(1)
             self.viz[self.meshcat_path].delete()
             return opt_traj
         except Exception as e:
@@ -94,7 +116,7 @@ class TrajectoryOptimizer:
             self.viz[self.meshcat_path].delete()
             raise e
         
-    def get_grip_transform(self, q):
+    def calc_grip_transform(self, q):
         pin.framesForwardKinematics(self.robot.model, self.robot.data, q)
         oMl = self.robot.data.oMf[self.robot.model.getFrameId(LEFT_HAND)]
         oMr = self.robot.data.oMf[self.robot.model.getFrameId(RIGHT_HAND)]
@@ -117,3 +139,6 @@ class TrajectoryOptimizer:
         bezier_path = Bezier(cube_path, t_max=1)
         samples = np.linspace(0, 1, bezier_samples)
         self.viz[self.meshcat_path].set_object(g.Line(g.PointsGeometry(np.array([bezier_path(t) for t in samples]).transpose()), g.MeshBasicMaterial(color=0x0000ff)))
+
+    def cube_path_distance(self, a, b):
+        return np.linalg.norm(np.array(a) - np.array(b))

@@ -72,10 +72,10 @@ if __name__ == "__main__":
 
     # Create a trajectory
     # trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=1000)
-    trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, 
+    trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints,
                                                total_time=total_time, 
                                                ramp_time=0.5, 
-                                               n_bezier_control_points=5, 
+                                               n_bezier_control_points=10, 
                                                n_bezier_cost_samples=50)
     
     # # Visualize the trajectory
