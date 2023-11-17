@@ -2,6 +2,8 @@ import numpy as np
 import scipy
 
 from bezier import Bezier
+from cache_results import cache_results
+from trajectory_optimizer import TrajectoryOptimizer
 
 
 def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
@@ -78,3 +80,13 @@ def create_linear_trajectory(waypoints, cube_waypoints, total_time, ramp_time, n
     # Resample path according to velocity profile
     pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, n_samples)
     return pose_trajectory
+
+# @cache_results
+def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, total_time, ramp_time, n_bezier_control_points=10, n_bezier_cost_samples=100):
+    ref_lin_traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=ramp_time, n_samples=n_bezier_control_points)
+    opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
+    opt_pose_waypoints = opt.optimize(ref_lin_traj)
+    pq = Bezier(opt_pose_waypoints, t_max=total_time)
+    vq = pq.derivative(1)
+    aq = pq.derivative(2)
+    return pq, vq, aq

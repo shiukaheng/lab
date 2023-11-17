@@ -6,6 +6,7 @@ Created on Wed Sep  6 15:32:51 2023
 @author: stonneau
 """
 
+import time
 import numpy as np
 from setup_pybullet import Simulation
 from tools import getcubeplacement, setupwithmeshcat
@@ -18,7 +19,7 @@ from trajectory_optimizer import TrajectoryOptimizer
 Kp = 6000.               # proportional gain (P of PD)
 Kv = 2 * np.sqrt(Kp)   # derivative gain (D of PD)
 
-def controllaw(sim: Simulation, robot, trajs, tcurrent, cube):
+def controllaw(sim: Simulation, robot, trajs, tcurrent):
     pos_traj, vel_traj, acc_traj = trajs
 
     qr, vqr, aqr = pos_traj(tcurrent), vel_traj(tcurrent), acc_traj(tcurrent)
@@ -71,11 +72,17 @@ if __name__ == "__main__":
 
     # Create a trajectory
     # trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=1000)
-    traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=5)
-    opt = TrajectoryOptimizer(robot, cube, viz)
-    opt.optimize(traj)
-    # sim.setqsim(q0)
+    trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, 
+                                               total_time=total_time, 
+                                               ramp_time=0.5, 
+                                               n_bezier_control_points=10, 
+                                               n_bezier_cost_samples=100)
+    
+    # Visualize the trajectory
+    for t in np.linspace(0, 4, 100):
+        viz.display(trajs[0](t))
+        time.sleep(0.1)
 
     # while tcur < total_time:
-    #     rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+    #     rununtil(controllaw, DT, sim, robot, trajs, tcur)
     #     tcur += DT
