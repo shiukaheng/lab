@@ -4,7 +4,7 @@ import scipy
 from bezier import Bezier
 from cache_results import cache_results
 from trajectory_optimizer import TrajectoryOptimizer
-
+from scipy.interpolate import interp1d
 
 def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
     # Time for each sample
@@ -81,9 +81,27 @@ def create_linear_trajectory(waypoints, cube_waypoints, total_time, ramp_time, n
     pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, n_samples)
     return pose_trajectory
 
+def uniform_resample(points, n_samples):
+    # Calculate the cumulative distance along the path
+    distances = np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1))
+    cum_dist = np.insert(np.cumsum(distances), 0, 0)
+
+    # Create an interpolating function for each dimension
+    interpolators = [interp1d(cum_dist, points[:, i], kind='linear') for i in range(points.shape[1])]
+
+    # Regular intervals along the path
+    sample_at = np.linspace(0, cum_dist[-1], n_samples)
+
+    # Resample the path
+    resampled_points = np.array([interpolator(sample_at) for interpolator in interpolators]).T
+
+    return resampled_points
+
 # @cache_results
 def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, total_time, ramp_time, n_bezier_control_points=10, n_bezier_cost_samples=100):
-    ref_lin_traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=ramp_time, n_samples=n_bezier_control_points)
+    # ref_lin_traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=ramp_time, n_samples=n_bezier_control_points)
+    # ref_lin_traj = resample_paeth(pose_waypoints, cube_waypoints, np.ones(len(pose_waypoints)), n_bezier_control_points)
+    ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
     opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
     opt_pose_waypoints = opt.optimize(ref_lin_traj)
     pq = Bezier(opt_pose_waypoints, t_max=total_time)

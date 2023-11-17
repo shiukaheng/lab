@@ -75,8 +75,8 @@ if __name__ == "__main__":
     trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, cube_waypoints, 
                                                total_time=total_time, 
                                                ramp_time=0.5, 
-                                               n_bezier_control_points=10, 
-                                               n_bezier_cost_samples=100)
+                                               n_bezier_control_points=5, 
+                                               n_bezier_cost_samples=50)
     
     # Visualize the trajectory
     for t in np.linspace(0, 4, 100):

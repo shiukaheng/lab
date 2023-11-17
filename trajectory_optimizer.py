@@ -4,6 +4,7 @@ from bezier import Bezier
 import pinocchio as pin
 from scipy.optimize import fmin_bfgs, fmin_l_bfgs_b
 import meshcat.geometry as g
+from inverse_geometry_utils import distanceToObstacle
 
 from config import LEFT_HAND, RIGHT_HAND
 
@@ -27,18 +28,21 @@ class TrajectoryOptimizer:
 
     def cost(self, opt_params): # Trajectory control points will be in the shape of q * frames (flattened)
         trajectory = self.opt_params_to_trajectory(opt_params)
+        cube_trajectory = self.get_cube_path(trajectory)
         b = Bezier(trajectory, t_max=1)
         # Get the trajectory evaluation points
         samples = np.linspace(0, 1, self.evaluation_points)
         cost = 0
-        for t in samples:
+        for sample in samples:
             # Get the current frame
-            current_frame = b(t)
-            # Get the current grip transform
-            current_grip_transform = self.get_grip_transform(current_frame)
+            q = b(sample)
+            # # Get the current grip transform
+            current_grip_transform = self.get_grip_transform(q)
             # Get the difference between the current grip transform and the reference grip transform
             cost += np.linalg.norm(current_grip_transform.homogeneous - self.reference_grip_transform.homogeneous)
-        return cost
+            # Obstacle cost
+            cost += max(0.05-distanceToObstacle(self.robot, q, computeFrameForwardKinematics=False), 0)
+        return cost / self.evaluation_points
     
     def trajectory_to_opt_params(self, trajectory):
         # Flatten the trajectory control points
@@ -62,7 +66,6 @@ class TrajectoryOptimizer:
             opt_params = fmin_bfgs(self.cost, opt_params, callback=self.opt_callback, maxiter=100)
             opt_traj = self.opt_params_to_trajectory(opt_params)
             self.plot_cube_path(opt_traj)
-            # print(opt_traj)
             time.sleep(5)
             self.viz[self.meshcat_path].delete()
             return opt_traj
