@@ -63,7 +63,7 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
-    # robot, sim, cube, viz = setupwithpybulletandmeshcat()
+    robot, sim, cube, viz = setupwithpybulletandmeshcat()
 
     # Resample the trajectory eve
 
@@ -78,11 +78,13 @@ if __name__ == "__main__":
                                                n_bezier_control_points=5, 
                                                n_bezier_cost_samples=50)
     
-    # Visualize the trajectory
-    for t in np.linspace(0, 4, 100):
-        viz.display(trajs[0](t))
-        time.sleep(0.1)
+    # # Visualize the trajectory
+    # for t in np.linspace(0, 4, 100):
+    #     viz.display(trajs[0](t))
+    #     time.sleep(0.1)
 
-    # while tcur < total_time:
-    #     rununtil(controllaw, DT, sim, robot, trajs, tcur)
-    #     tcur += DT
+    sim.setqsim(trajs[0](0))
+
+    while tcur < total_time:
+        rununtil(controllaw, DT, sim, robot, trajs, tcur)
+        tcur += DT
