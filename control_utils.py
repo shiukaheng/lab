@@ -20,7 +20,7 @@ def create_linear_velocity_profile(total_duration, ramp_time, n_samples):
 
     return velocity_profile
 
-def resample_path(waypoints, cube_waypoints, velocity_profile, total_time, sampling_rate):
+def resample_path(waypoints, cube_waypoints, velocity_profile, n_samples):
     if len(waypoints) != len(cube_waypoints):
         raise ValueError("waypoints and cube_waypoints must be of identical length")
 
@@ -33,11 +33,10 @@ def resample_path(waypoints, cube_waypoints, velocity_profile, total_time, sampl
 
     # Normalize the velocity profile
     t_norm = np.linspace(0, 1, len(velocity_profile))
-    t_total = np.linspace(0, total_time, int(total_time * sampling_rate))
 
     # Interpolate and integrate velocity profile to get position
     velocity_interp = scipy.interpolate.interp1d(t_norm, velocity_profile, kind='linear', fill_value="extrapolate")
-    position_profile = np.cumsum(velocity_interp(np.linspace(0, 1, len(t_total))) / sampling_rate)
+    position_profile = np.cumsum(velocity_interp(np.linspace(0, 1, n_samples)) / n_samples)
 
     # Normalize the position profile to [0, 1]
     position_profile = position_profile / position_profile[-1]
@@ -66,7 +65,7 @@ def create_naive_bezier_trajectory(waypoints, cube_waypoints, total_time, ramp_t
     velocity_profile = create_linear_velocity_profile(total_time, ramp_time, n_samples)
 
     # Resample path according to velocity profile
-    pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
+    pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
     # cube_trajectory = resample_path(cube_waypoints, cube_waypoints, velocity_profile, 1, 1000) # Forcing it to have 1000 samples, because higher samples cause numerical issues with Bezier curve
     # Create Bezier curve from trajectory points
     pose_bezier_curve, pose_velocity_curve, pose_acceleration_curve = create_bezier_trajectory(pose_trajectory, t_max=total_time) # Relying on Bezier t_max to stretch the trajectory to the desired duration
@@ -77,5 +76,5 @@ def create_linear_trajectory(waypoints, cube_waypoints, total_time, ramp_time, n
     # Create velocity profile
     velocity_profile = create_linear_velocity_profile(total_time, ramp_time, n_samples)
     # Resample path according to velocity profile
-    pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, total_time, n_samples)
+    pose_trajectory = resample_path(waypoints, cube_waypoints, velocity_profile, n_samples)
     return pose_trajectory

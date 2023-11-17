@@ -12,6 +12,7 @@ from tools import getcubeplacement, setupwithmeshcat
 import pinocchio as pin
 
 from control_utils import *
+from trajectory_optimizer import TrajectoryOptimizer
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
 Kp = 6000.               # proportional gain (P of PD)
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
-    robot, sim, cube, viz = setupwithpybulletandmeshcat()
+    # robot, sim, cube, viz = setupwithpybulletandmeshcat()
 
     # Resample the trajectory eve
 
@@ -69,10 +70,12 @@ if __name__ == "__main__":
     total_time = 3.
 
     # Create a trajectory
-    trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, sampling_rate=int(1/DT))
+    # trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=1000)
+    traj = create_linear_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=5)
+    opt = TrajectoryOptimizer(robot, cube, viz)
+    opt.optimize(traj)
+    # sim.setqsim(q0)
 
-    sim.setqsim(q0)
-
-    while tcur < total_time:
-        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
-        tcur += DT
+    # while tcur < total_time:
+    #     rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+    #     tcur += DT

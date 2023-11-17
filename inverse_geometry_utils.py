@@ -42,7 +42,7 @@ def effector_distance_cost(robot, cube, inflationRadius=0.0005):
     # Return the sum of the squared distances
     return dist_l + dist_r
 
-def distanceToObstacle(robot, q):
+def distanceToObstacle(robot, q, computeFrameForwardKinematics=True, computeGeometryPlacements=True):
     '''Return the shortest distance between robot and the obstacle. '''
 
     geomidobs = robot.collision_model.getGeometryId('obstaclebase_0')
@@ -50,8 +50,10 @@ def distanceToObstacle(robot, q):
 
     pairs = [i for i, pair in enumerate(robot.collision_model.collisionPairs) if pair.second == geomidobs or pair.second == geomidtable]
 
-    pin.framesForwardKinematics(robot.model,robot.data,q)
-    pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
+    if computeFrameForwardKinematics:
+        pin.framesForwardKinematics(robot.model,robot.data,q)
+    if computeGeometryPlacements:
+        pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
 
     dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]      
     
