@@ -18,7 +18,7 @@ class TrajectoryBezier:
         self.q_acc = self.q_pos.derivative(2)
 
 class TrajectoryOptimizer:
-    def __init__(self, robot, cube, viz, evaluation_points=100, iters=15):
+    def __init__(self, robot, cube, viz, evaluation_points=100, iters=20):
         self.robot = robot
         self.cube = cube
         self.viz = viz
