@@ -63,14 +63,16 @@ def weirdPostureCost(robot, q):
     # L2 of the difference between the current posture and the initial posture
     return np.linalg.norm(q - robot.q0) ** 2
 
-def selfCollisionDistance(robot, q):
+def selfCollisionDistance(robot, q, computeFrameForwardKinematics=True, computeGeometryPlacements=True):
     '''Return the shortest distance between robot and the obstacle. '''
     geomidobs = robot.collision_model.getGeometryId('obstaclebase_0')
     geomidtable = robot.collision_model.getGeometryId('baseLink_0')
     pairs = [i for i, pair in enumerate(robot.collision_model.collisionPairs) if not (pair.second == geomidobs or pair.second == geomidtable)]
     # print([(robot.collision_model.geometryObjects[pair.first].name, robot.collision_model.geometryObjects[pair.second].name) for pair in robot.collision_model.collisionPairs])
-    pin.framesForwardKinematics(robot.model,robot.data,q)
-    pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
+    if computeFrameForwardKinematics:
+        pin.framesForwardKinematics(robot.model,robot.data,q)
+    if computeGeometryPlacements:
+        pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
     dists = [pin.computeDistance(robot.collision_model, robot.collision_data, idx).min_distance for idx in pairs]      
     # print(dists)
     return np.min(dists)

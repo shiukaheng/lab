@@ -22,9 +22,10 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
         initial=cubeplacementq0.translation,
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
-        collision_samples=5,
-        max_neighbours=1,
-    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=30)
+        collision_samples=2,
+        max_neighbours=3,
+        step_size=0.05,
+    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=50)
     return [path[1] for path in path]
 
 # @cache_results
@@ -34,8 +35,10 @@ def computepathwithcubepos(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robo
         initial=cubeplacementq0.translation,
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
-        collision_samples=20,
-    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=30)
+        collision_samples=2,
+        max_neighbours=3,
+        step_size=0.05,
+    ).solve(max_iterations=100, post_goal_iterations=100, shortcut_iterations=50)
     return path
 
 def displaypath(robot,path,dt,viz):
