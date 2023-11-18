@@ -299,16 +299,12 @@ class RRTStarIG(RRTStar):
     # @cache_results
     def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, shortcut_iterations: int = 500, verbose=True) -> List[RRTStarNode] | None:
         try:
-            if verbose:
-                print("=====================================")
             path = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
             if path is None:
                 return None
             shortcut_optimized = self.path_shortcut(path, shortcut_iterations, verbose)
             self.clear_paths()
-            if verbose:
-                print("=====================================")
             return shortcut_optimized
         except KeyboardInterrupt:
             self.clear_paths()

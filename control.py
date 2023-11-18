@@ -50,8 +50,7 @@ if __name__ == "__main__":
         
     from tools import setupwithpybulletandmeshcat, rununtil
     from config import DT
-    
-    # robot, sim, cube, viz = setupwithpybulletandmeshcat()
+
     robot, cube, viz = setupwithmeshcat()
     
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
@@ -65,8 +64,6 @@ if __name__ == "__main__":
 
     robot, sim, cube, viz = setupwithpybulletandmeshcat()
 
-    # Resample the trajectory eve
-
     tcur = 0.
     total_time = 3.
 
@@ -77,11 +74,6 @@ if __name__ == "__main__":
                                                ramp_time=0.5, 
                                                n_bezier_control_points=10, 
                                                n_bezier_cost_samples=50)
-    
-    # # Visualize the trajectory
-    # for t in np.linspace(0, 4, 100):
-    #     viz.display(trajs[0](t))
-    #     time.sleep(0.1)
 
     sim.setqsim(trajs[0](0))
 

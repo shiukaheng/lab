@@ -18,17 +18,18 @@ class TrajectoryBezier:
         self.q_acc = self.q_pos.derivative(2)
 
 class TrajectoryOptimizer:
-    def __init__(self, robot, cube, viz, evaluation_points=100):
+    def __init__(self, robot, cube, viz, evaluation_points=100, iters=15):
         self.robot = robot
         self.cube = cube
         self.viz = viz
         self.evaluation_points = evaluation_points
         self.opt_og_shape = None
         self.reference_grip_transform = []
-        self.meshcat_path = "/trajectory_optimizer"
         self.begin = None
         self.end = None
         self.starting_cube_path = None
+        self.iters = iters
+        self.current_iter = 0
 
     def cost(self, opt_params): # Trajectory control points will be in the shape of q * frames (flattened)
         trajectory = self.opt_params_to_trajectory(opt_params)
@@ -52,7 +53,7 @@ class TrajectoryOptimizer:
         costs = np.array(costs)
         # MSE of costs array
         final_cost = np.mean(costs)
-        final_cost += self.cube_path_distance(cube_trajectory, self.starting_cube_path) * 0.01
+        final_cost += self.cube_path_distance(cube_trajectory, self.starting_cube_path) * 0.5
         return final_cost
 
     def obstacle_distance_penalty(self, q, dist_offset=0.2, self_collision_dist_offset=0.2
@@ -93,27 +94,33 @@ class TrajectoryOptimizer:
         return np.concatenate((np.array([self.begin]), unflattened, np.array([self.end])), axis=0)
     
     def opt_callback(self, opt_params):
-        print(self.cost(opt_params))
+        # print(self.cost(opt_params))
+        self.current_iter += 1
+        print(f"✨ Trajectory optimization: Iteration {self.current_iter}/{self.iters}, cost: {self.cost(opt_params)}       ", end="\r")
         traj = self.opt_params_to_trajectory(opt_params)
         self.plot_cube_path(traj)
-        time.sleep(0.5)
     
     def optimize(self, traj_cp):
         try:
             assert len(traj_cp) > 2
+            self.current_iter = 0
             self.init_trajectory_to_opt_params_converter(traj_cp)
             self.starting_cube_path = self.get_cube_path(traj_cp)
+            # Plot original trajectory
+            self.plot_cube_path(traj_cp, path_name="original_path", color=0xcccccc)
             opt_params = self.trajectory_to_opt_params(traj_cp)
             # opt_params = fmin_bfgs(self.cost, opt_params, callback=self.opt_callback, maxiter=30)
-            opt_params = fmin_slsqp(self.cost, opt_params, iter=15, callback=self.opt_callback)
+            print(f"🚀 Trajectory optimization: Initializing...", end="\r")
+            opt_params = fmin_slsqp(self.cost, opt_params, iter=self.iters, callback=self.opt_callback)
+            print(f"✅ Trajectory optimization: Done! Final cost: {self.cost(opt_params)}          ")
             opt_traj = self.opt_params_to_trajectory(opt_params)
             self.plot_cube_path(opt_traj)
             time.sleep(1)
-            self.viz[self.meshcat_path].delete()
+            self.viz["/trajectory_optimizer"].delete()
             return opt_traj
         except Exception as e:
             # Clear the meshcat path
-            self.viz[self.meshcat_path].delete()
+            self.viz["/trajectory_optimizer"].delete()
             raise e
         
     def calc_grip_transform(self, q):
@@ -133,12 +140,12 @@ class TrajectoryOptimizer:
             cube_frames.append(translation)
         return cube_frames
     
-    def plot_cube_path(self, traj_cp, bezier_samples=100):
+    def plot_cube_path(self, traj_cp, bezier_samples=100, path_name="cube_path", color=0x0000ff):
         cube_path = self.get_cube_path(traj_cp)
         # self.viz[self.meshcat_path].set_object(g.Line(g.PointsGeometry(np.array(cube_path).transpose()), g.MeshBasicMaterial(color=0x0000ff)))
         bezier_path = Bezier(cube_path, t_max=1)
         samples = np.linspace(0, 1, bezier_samples)
-        self.viz[self.meshcat_path].set_object(g.Line(g.PointsGeometry(np.array([bezier_path(t) for t in samples]).transpose()), g.MeshBasicMaterial(color=0x0000ff)))
+        self.viz[f"/trajectory_optimizer/{path_name}"].set_object(g.Line(g.PointsGeometry(np.array([bezier_path(t) for t in samples]).transpose()), g.MeshBasicMaterial(color=color)))
 
     def cube_path_distance(self, a, b):
         return np.linalg.norm(np.array(a) - np.array(b))
