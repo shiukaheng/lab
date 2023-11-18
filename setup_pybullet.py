@@ -56,7 +56,7 @@ def load_object(sim,urdf,placement,isFixed):
 
 class Simulation(Simulation_base):
     """A Bullet simulation involving Nextage robot"""
-
+    
     def __init__(self, pinocchiorobot):
         """Constructor
         Creates a simulation instance with Nextage robot.
@@ -88,7 +88,6 @@ class Simulation(Simulation_base):
         q = np.array([x[0] for x in xbullet])
         vq = np.array([x[1] for x in xbullet])
         return q, vq
-    
 
     def setqsim(self, q):
         """sets the current q
@@ -123,9 +122,6 @@ class Simulation(Simulation_base):
             forces=torques,
         )
         pyb.stepSimulation()
-
-        
-    
 
 def setuppybullet(pinocchiorobot):
     sim = Simulation(pinocchiorobot)    

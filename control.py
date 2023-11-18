@@ -52,7 +52,7 @@ if __name__ == "__main__":
     from config import DT
     
     # robot, sim, cube, viz = setupwithpybulletandmeshcat()
-    robot, cube, viz = setupwithmeshcat()
+    robot, sim, cube, viz = setupwithpybulletandmeshcat()
     
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
     from inverse_geometry import computeqgrasppose
@@ -63,25 +63,18 @@ if __name__ == "__main__":
     path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
     cube_waypoints, pose_waypoints = zip(*path)
 
-    robot, sim, cube, viz = setupwithpybulletandmeshcat()
-
     # Resample the trajectory eve
 
     tcur = 0.
     total_time = 3.
 
-    # Create a trajectory
-    # trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=1000)
-    trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints,
-                                               total_time=total_time, 
-                                               ramp_time=0.5, 
-                                               n_bezier_control_points=10, 
-                                               n_bezier_cost_samples=50)
-    
-    # # Visualize the trajectory
-    # for t in np.linspace(0, 4, 100):
-    #     viz.display(trajs[0](t))
-    #     time.sleep(0.1)
+    trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time, ramp_time=0.5, n_samples=1000)
+
+    # trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints,
+    #                                            total_time=total_time, 
+    #                                            ramp_time=0.5, 
+    #                                            n_bezier_control_points=30, 
+    #                                            n_bezier_cost_samples=50)
 
     sim.setqsim(trajs[0](0))
 

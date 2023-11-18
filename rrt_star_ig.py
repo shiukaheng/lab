@@ -8,6 +8,7 @@ import time
 from inverse_geometry import computeqgrasppose
 from inverse_geometry_utils import generate_cube_pos, to_full
 import meshcat.transformations as tf
+from np_cache import np_cache
 
 # Goal 1: Check collision using inverse geometry
 # Goal 2: Provide better initial guess for inverse geometry
@@ -221,11 +222,14 @@ class RRTStarIG(RRTStar):
         neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
         # Lets filter away all neighbors that are not reachable from the new point
+        if self.max_neighbours is not None and len(neighbors) > self.max_neighbours:
+            # Sort the neighbors by distance to the new node and only keep the closest ones
+            neighbors = sorted(neighbors, key=lambda n: np.linalg.norm(n.point - new_point))[:self.max_neighbours]
         neighbors_expanded = [(n, self.check_edge_collision(n.point, new_point, n.q)) for n in neighbors]
         neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
-        if self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours:
-            # Sort the neighbors by distance to the new node and only keep the closest ones
-            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbours]
+        # if self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours:
+        #     # Sort the neighbors by distance to the new node and only keep the closest ones
+        #     neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbours]
 
         best_cost = np.inf
         best_parent = None
@@ -271,10 +275,14 @@ class RRTStarIG(RRTStar):
     
     def check_point_collision(self, point: np.ndarray, start_q: Optional[np.ndarray]=None) -> bool:
         self.plot_exploration_point(point)
+        q, success = self._check_point_collision(point, start_q)
+        return not success, q
+
+    def _check_point_collision(self, point, start_q):
         if start_q is None:
             start_q = self.q_init
         q, success = computeqgrasppose(self.robot, start_q, self.cube, generate_cube_pos(*point), self.viz)
-        return not success, q
+        return q,success
     
     def check_edge_collision(self, start: np.ndarray, end: np.ndarray, start_q: Optional[np.ndarray]=None) -> (bool, Optional[np.ndarray], Optional[np.ndarray], List[np.ndarray]): # (collision, best end, best end's q)
         self.plot_explore_segment(start, end)
@@ -299,16 +307,12 @@ class RRTStarIG(RRTStar):
     # @cache_results
     def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, shortcut_iterations: int = 500, verbose=True) -> List[RRTStarNode] | None:
         try:
-            if verbose:
-                print("=====================================")
             path = super().solve(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
             if path is None:
                 return None
             shortcut_optimized = self.path_shortcut(path, shortcut_iterations, verbose)
             self.clear_paths()
-            if verbose:
-                print("=====================================")
             return shortcut_optimized
         except KeyboardInterrupt:
             self.clear_paths()
