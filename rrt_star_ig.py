@@ -245,14 +245,21 @@ class RRTStarIG(RRTStar):
         self.plot_node_segment(parent, child)
 
     def analyse_neighbors(self, new_point):
+        # Lets find the neighbors within a certain radius
         neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
-        # Lets filter away all neighbors that are not reachable from the new point
-        neighbors_expanded = [(n, self.check_edge_collision(n.point, new_point, n.q)) for n in neighbors]
-        neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
-        if self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours:
-            # Sort the neighbors by distance to the new node and only keep the closest ones
-            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbours]
+        # Lets sort neighbors by distance to the new point
+        neighbors = sorted(neighbors, key=lambda n: np.linalg.norm(n.point - new_point))
+
+        neighbors_in_reach = []
+        # Loop if we have not found enough neighbors to meet the max_neighbours requirement (or loop through all neighbors if max_neighbours is None)
+        for neighbor in neighbors:
+            print(f"Checking neighbor to see if we can reach it: {neighbor.point}")
+            expanded = (neighbor, self.check_edge_collision(neighbor.point, new_point, neighbor.q))
+            if expanded[1][0] == False:
+                neighbors_in_reach.append(expanded)
+            if (self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours):
+                break
 
         # COST CHECKING
         best_cost = np.inf
