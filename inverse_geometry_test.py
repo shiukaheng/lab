@@ -100,7 +100,7 @@ def success_debug(robot, cube, q):
 
     return collision_ok, joint_limits_ok, effector_distance_ok, issue
 
-def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False):
+def random_tests(robot, cube, viz, iters=50, seed=42, interactive=False, computeqgrasppose=computeqgrasppose):
     """
     Generate random tests and evaluate the results. Random tests are not guaranteed to have solutions but we can
     still evaluate relative performance.
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     robot, cube, viz = setupwithmeshcat()
     # visualize_joints(robot, cube, viz)
     # original_tests(robot, cube, viz, interactive=True)
-    random_tests(robot, cube, viz, interactive=True, iters=100)
+    random_tests(robot, cube, viz, interactive=True, iters=500)
     # qinitial = np.array([0, # Base
     #                      0, 0, # Head
     #                     0, -2, 3, 0, -1.57, -1.57, # Left arm
