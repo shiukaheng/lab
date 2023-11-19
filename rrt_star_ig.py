@@ -191,29 +191,25 @@ class RRTStarIG(RRTStar):
         
         # Now, lets see if we can help any of the neighbors reduce their cost by making them point to the new node
         # Lets first get our own cost to the root
-        current_cost = self.reduce_neighbour_cost(new_node, neighbors_in_reach, best_parent)
+        self.reduce_neighbour_cost(new_node, neighbors_in_reach, best_parent)
         
         # Did we reach the goal?
-        self.handle_goal(new_point_clamped, new_node, current_cost)
+        self.handle_goal(new_node)
         return new_node
 
     def reduce_neighbour_cost(self, new_node, neighbors_in_reach, best_parent):
-        # print("New node:", new_node.point)
-        # print("Neighbors in reach:", neighbors_in_reach)
-        # print("Best parent:", best_parent)
-        
         # COST CHECKING
-        _, current_cost = self.get_path(new_node)
         for neighbor, neighbor_details in [n for n in neighbors_in_reach if n[0] != best_parent]:
             # Lets see if we can get a better cost by going through the new node
-            new_cost = current_cost + np.linalg.norm(new_node.point - neighbor.point)
-            old_cost = self.get_path(neighbor)[1]
+            # new_cost = current_cost + np.linalg.norm(new_node.point - neighbor.point)
+            new_cost = self.get_hypothetical_cost(new_node, neighbor.point, neighbor_details[2])
+            # old_cost = self.get_path(neighbor)[1]
+            old_cost = self.get_node_cost(neighbor)
             if new_cost < old_cost:
                 # We can get a better cost, lets update the neighbor
                 neighbor.parent = new_node
                 neighbor.q = neighbor_details[2]
                 neighbor.interpolated_frames = neighbor_details[3]
-        return current_cost
 
     def link_nodes(self, child, parent, collision_return):
         child.parent = parent
@@ -236,7 +232,7 @@ class RRTStarIG(RRTStar):
         best_parent = None
         best_neighbor_collision_return = None
         for neighbor, neighbor_collision_return in neighbors_in_reach:
-            cost = self.get_hypothetical_cost(neighbor)
+            cost = self.get_hypothetical_cost(neighbor, new_point, neighbor_collision_return[2])
             if cost < best_cost:
                 best_cost = cost
                 best_parent = neighbor
@@ -419,7 +415,7 @@ class RRTStarIG(RRTStar):
         print(f"✅ Local path optimization: Done! Path length reduced by: {int((original_length-self.expanded_path_length(expanded_path))/original_length*100)}%            ")
         return expanded_path
         
-    def handle_goal(self, new_clamped_point, new_node, current_cost):
+    def handle_goal(self, new_node):
         if self.goal is None:
             return
         if self.goal_seeking_radius is not None:
@@ -444,8 +440,10 @@ class RRTStarIG(RRTStar):
                     # Otherwise, lets compare the existing path to the new path
 
                     # COST CHECKING
-                    existing_path_cost = self.get_path(self.goal_node)[1]
-                    new_path_cost = current_cost + np.linalg.norm(new_clamped_point - self.goal)
+                    # existing_path_cost = self.get_path(self.goal_node)[1]
+                    existing_path_cost = self.get_node_cost(self.goal_node)
+                    # new_path_cost = current_cost + np.linalg.norm(new_clamped_point - self.goal)
+                    new_path_cost = self.get_hypothetical_cost(new_node, self.goal, end_q)
                     if new_path_cost < existing_path_cost:
                         # We have a better path, lets connect directly to the goal
                         self.connect_to_end(new_node, end_q, interpolated)
