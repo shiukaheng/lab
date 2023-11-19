@@ -8,6 +8,7 @@ import time
 from inverse_geometry import computeqgrasppose
 from inverse_geometry_utils import generate_cube_pos, to_full
 import meshcat.transformations as tf
+from path_cost_evaluator import PathCostEvaluator
 
 # Goal 1: Check collision using inverse geometry
 # Goal 2: Provide better initial guess for inverse geometry
@@ -96,6 +97,7 @@ class RRTStarIG(RRTStar):
             self.initial_node.q = self.q_init
             self.shortcut_tolerance = shortcut_tolerance
             self.max_neighbours = max_neighbours
+            self.path_cost_evaluator = PathCostEvaluator(robot, cube)
 
     def sample_random_point(self):
         if (self.goal is not None) and (np.random.uniform() < self.bias):
@@ -153,10 +155,15 @@ class RRTStarIG(RRTStar):
             return self.get_node_cost(self.goal_node)
         
     def get_hypothetical_cost(self, node, new_point, new_q):
-        return self.get_node_cost(node) + np.linalg.norm(node.point - new_point)
+        combined_path = [(new_point, new_q)] + [(n.point, n.q) for n in self.get_path(node)[0]]
+        print(combined_path)
+        return self.path_cost_evaluator.compute_cost(combined_path)
     
     def get_node_cost(self, node):
-        return self.get_path(node)[1]
+        path = self.get_path(node)[0]
+        path = [(n.point, n.q) for n in path]
+        print(path)
+        return self.path_cost_evaluator.compute_cost(path)
 
     def sample(self) -> np.ndarray:
         # Lets find the nearest neighbor to target
