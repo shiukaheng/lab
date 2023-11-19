@@ -248,7 +248,6 @@ class RRTStarIG(RRTStar):
         # Lets find the neighbors within a certain radius
         neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
-<<<<<<< Updated upstream
         # Lets sort neighbors by distance to the new point
         neighbors = sorted(neighbors, key=lambda n: np.linalg.norm(n.point - new_point))
 
@@ -261,14 +260,6 @@ class RRTStarIG(RRTStar):
                 neighbors_in_reach.append(expanded)
             if (self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours):
                 break
-=======
-        # Lets filter away all neighbors that are not reachable from the new point
-        neighbors_expanded = [(n, self.check_edge_collision(n.point, new_point, n.q)) for n in neighbors]
-        neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
-        if self.max_neighbors is not None and len(neighbors_in_reach) > self.max_neighbors:
-            # Sort the neighbors by distance to the new node and only keep the closest ones
-            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbors]
->>>>>>> Stashed changes
 
         # COST CHECKING
         best_cost = np.inf
