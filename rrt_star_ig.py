@@ -75,7 +75,7 @@ class RRTStarIG(RRTStar):
                     goal_seeking_radius: Optional[float] = 1.0,
                     q_init: Optional[np.ndarray] = None,
                     shortcut_tolerance: float = 0.05,
-                    max_neighbours: Optional[int] = 5,
+                    max_neighbors: Optional[int] = 5,
                     ):
             super().__init__(
                 dimensions=dimensions,
@@ -96,7 +96,7 @@ class RRTStarIG(RRTStar):
             self.q_init = q_init if q_init is not None else robot.q0.copy()
             self.initial_node.q = self.q_init
             self.shortcut_tolerance = shortcut_tolerance
-            self.max_neighbours = max_neighbours
+            self.max_neighbors = max_neighbors
             self.path_cost_evaluator = PathCostEvaluator(robot, cube)
 
     def sample_random_point(self):
@@ -248,6 +248,7 @@ class RRTStarIG(RRTStar):
         # Lets find the neighbors within a certain radius
         neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
+<<<<<<< Updated upstream
         # Lets sort neighbors by distance to the new point
         neighbors = sorted(neighbors, key=lambda n: np.linalg.norm(n.point - new_point))
 
@@ -260,6 +261,14 @@ class RRTStarIG(RRTStar):
                 neighbors_in_reach.append(expanded)
             if (self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours):
                 break
+=======
+        # Lets filter away all neighbors that are not reachable from the new point
+        neighbors_expanded = [(n, self.check_edge_collision(n.point, new_point, n.q)) for n in neighbors]
+        neighbors_in_reach = [n for n in neighbors_expanded if n[1][0] == False]
+        if self.max_neighbors is not None and len(neighbors_in_reach) > self.max_neighbors:
+            # Sort the neighbors by distance to the new node and only keep the closest ones
+            neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbors]
+>>>>>>> Stashed changes
 
         # COST CHECKING
         best_cost = np.inf
