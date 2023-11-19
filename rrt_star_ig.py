@@ -313,13 +313,16 @@ class RRTStarIG(RRTStar):
         else:
             print("✅ Exploring search space: Path found!          ", flush=True)
             # Lets get the path length
-            _, original_path_cost = self.get_path(self.goal_node)
+            # COST CHECKING
+            # _, original_path_cost = self.get_path(self.goal_node)
+            original_path_cost = self.get_node_cost(self.goal_node)
             # Now, lets sample some more to see if we can find a better path
             for i in range(post_goal_iterations):
                 self.sample()
                 if verbose:
                     # Lets calculate the new path length
-                    _, new_path_cost = self.get_path(self.goal_node)
+                    # _, new_path_cost = self.get_path(self.goal_node)
+                    new_path_cost = self.get_node_cost(self.goal_node)
                     print(f"✨ Global path optimization: {int((i+1)/post_goal_iterations*100)}%, length reduced by {int((original_path_cost - new_path_cost)/original_path_cost*100)}%     ", end="\r", flush=True)
             if verbose:
                 if post_goal_iterations > 0:
