@@ -144,6 +144,20 @@ class RRTStarIG(RRTStar):
         self.clear_explore_segment()
         self.clear_exploration_point()
 
+    def get_goal_cost(self):
+        if self.goal_node is None:
+            return np.inf
+        elif self.goal_node.parent is None:
+            return np.inf
+        else:
+            return self.get_node_cost(self.goal_node)
+        
+    def get_hypothetical_cost(self, node, new_point, new_q):
+        return self.get_node_cost(node) + np.linalg.norm(node.point - new_point)
+    
+    def get_node_cost(self, node):
+        return self.get_path(node)[1]
+
     def sample(self) -> np.ndarray:
         # Lets find the nearest neighbor to target
         # self.print_nn()
@@ -163,7 +177,7 @@ class RRTStarIG(RRTStar):
             return self.goal_node
 
         # Search for neighbors within a certain radius and see if we can find a better parent
-        neighbors_in_reach, best_parent, best_neighbor_collision_return = self.find_reachable_neighbours(new_point_clamped)
+        neighbors_in_reach, best_parent, best_neighbor_collision_return = self.analyse_neighbors(new_point_clamped)
 
         if best_parent is None:
             # We did not find any neighbors within reach, lets try again with a new sample
@@ -187,6 +201,8 @@ class RRTStarIG(RRTStar):
         # print("New node:", new_node.point)
         # print("Neighbors in reach:", neighbors_in_reach)
         # print("Best parent:", best_parent)
+        
+        # COST CHECKING
         _, current_cost = self.get_path(new_node)
         for neighbor, neighbor_details in [n for n in neighbors_in_reach if n[0] != best_parent]:
             # Lets see if we can get a better cost by going through the new node
@@ -205,7 +221,7 @@ class RRTStarIG(RRTStar):
         child.interpolated_frames = collision_return[3]
         self.plot_node_segment(parent, child)
 
-    def find_reachable_neighbours(self, new_point):
+    def analyse_neighbors(self, new_point):
         neighbors = self.query_spheroid(new_point, self.neighbor_radius)
 
         # Lets filter away all neighbors that are not reachable from the new point
@@ -215,6 +231,7 @@ class RRTStarIG(RRTStar):
             # Sort the neighbors by distance to the new node and only keep the closest ones
             neighbors_in_reach = sorted(neighbors_in_reach, key=lambda n: np.linalg.norm(n[0].point - new_point))[:self.max_neighbours]
 
+        # COST CHECKING
         best_cost = np.inf
         best_parent = None
         best_neighbor_collision_return = None
@@ -284,10 +301,44 @@ class RRTStarIG(RRTStar):
                     return True, samples[i-1], start_q, interpolated
         return False, end, start_q, interpolated
     
+    def sample_loop(self, max_iterations: int = 5000, post_goal_iterations: int = 1000, verbose=True) -> Optional[List[RRTStarNode]]:
+        # Sample until we find a path to the goal
+        if verbose:
+            print("🦾 Starting RTT*")
+        iterations = 0
+        while not self.goal_found() and iterations < max_iterations:
+            self.sample()
+            iterations += 1
+            if verbose:
+                print(f"🔍 Exploring search space: Iteration {iterations}/{max_iterations}", end="\r", flush=True)
+        if not self.goal_found():
+            if verbose:
+                print("❌ Exploring search space: No path found!", flush=True)
+        else:
+            print("✅ Exploring search space: Path found!          ", flush=True)
+            # Lets get the path length
+            _, original_path_cost = self.get_path(self.goal_node)
+            # Now, lets sample some more to see if we can find a better path
+            for i in range(post_goal_iterations):
+                self.sample()
+                if verbose:
+                    # Lets calculate the new path length
+                    _, new_path_cost = self.get_path(self.goal_node)
+                    print(f"✨ Global path optimization: {int((i+1)/post_goal_iterations*100)}%, length reduced by {int((original_path_cost - new_path_cost)/original_path_cost*100)}%     ", end="\r", flush=True)
+            if verbose:
+                if post_goal_iterations > 0:
+                    print(f"✅ Global path optimization: Done! Path length reduced by {int((original_path_cost - new_path_cost)/original_path_cost*100)}%       ", flush=True)
+            
+        # Now, lets get the path
+        path, _ = self.get_path(self.goal_node)
+        # Reverse the path list
+        path.reverse()
+        return path
+    
     # @cache_results
     def solve(self, max_iterations: int = 500, post_goal_iterations: int = 100, shortcut_iterations: int = 500, verbose=True) -> List[RRTStarNode] | None:
         try:
-            path = super().solve(max_iterations, post_goal_iterations, verbose)
+            path = self.sample_loop(max_iterations, post_goal_iterations, verbose)
             self.clear_paths()
             if path is None:
                 return None
@@ -391,6 +442,8 @@ class RRTStarIG(RRTStar):
                         self.connect_to_end(new_node, end_q, interpolated)
                         return
                     # Otherwise, lets compare the existing path to the new path
+
+                    # COST CHECKING
                     existing_path_cost = self.get_path(self.goal_node)[1]
                     new_path_cost = current_cost + np.linalg.norm(new_clamped_point - self.goal)
                     if new_path_cost < existing_path_cost:
