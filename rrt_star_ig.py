@@ -100,12 +100,28 @@ class RRTStarIG(RRTStar):
             self.path_cost_evaluator = PathCostEvaluator(robot, cube)
 
     def sample_random_point(self):
-        if (self.goal is not None) and (np.random.uniform() < self.bias):
-            return self.goal, True
-        # elif self.goal_node is not None and self.goal_node.parent is not None: # Informed RRT*
+        if self.goal_node.parent is None:
+            if (self.goal is not None) and (np.random.uniform() < self.bias):
+                return self.goal, True
+            # elif self.goal_node is not None and self.goal_node.parent is not None: # Informed RRT*
+            else:
+                new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
+                return new_point, False
         else:
-            new_point = np.random.uniform(self.lower_bounds, self.upper_bounds)
-            return new_point, False
+            return self.sample_random_point_near_path(), False
+        
+    def sample_random_point_near_path(self):
+        # Lets get the expanded path of the path
+        expanded_path = self.expand_path(self.get_path(self.goal_node)[0])
+        # Filter for only the points
+        expanded_path = [p[0] for p in expanded_path] # [np.array([x, y, z]), ...]
+        # Choose a random index in the expanded path
+        random_index = np.random.randint(0, len(expanded_path) - 1)
+        # Get the random point
+        random_point = expanded_path[random_index]
+        # Generate a random point near the random point, with radius of step_size
+        new_point = random_point + np.random.uniform(-self.step_size * 2, self.step_size * 2, size=self.dimensions)
+        return new_point
 
     def plot_node_segment(self, start_node: RRTStarIGNode, end_node: RRTStarIGNode):
         # Plot a segment between start and end, and add the meshcat path to the segment array
@@ -132,7 +148,7 @@ class RRTStarIG(RRTStar):
 
     def plot_best_goal_path(self):
         path, cost = self.get_path(self.goal_node)
-        self.plot_expanded_path(path)
+        self.plot_expanded_path(self.expand_path(path), pathname="best_path", color=0x0000ff)
 
     def plot_exploration_point(self, point):
         self.viz["/exploration_point"].set_object(g.Sphere(0.01), g.MeshBasicMaterial(color=0x00ffff))
@@ -156,13 +172,13 @@ class RRTStarIG(RRTStar):
         
     def get_hypothetical_cost(self, node, new_point, new_q):
         combined_path = [(new_point, new_q)] + [(n.point, n.q) for n in self.get_path(node)[0]]
-        print(combined_path)
+        # print(combined_path)
         return self.path_cost_evaluator.compute_cost(combined_path)
     
     def get_node_cost(self, node):
         path = self.get_path(node)[0]
         path = [(n.point, n.q) for n in path]
-        print(path)
+        # print(path)
         return self.path_cost_evaluator.compute_cost(path)
 
     def sample(self) -> np.ndarray:
@@ -202,6 +218,9 @@ class RRTStarIG(RRTStar):
         
         # Did we reach the goal?
         self.handle_goal(new_node)
+
+        # Plot best path
+        self.plot_best_goal_path()
         return new_node
 
     def reduce_neighbour_cost(self, new_node, neighbors_in_reach, best_parent):
@@ -214,6 +233,7 @@ class RRTStarIG(RRTStar):
             old_cost = self.get_node_cost(neighbor)
             if new_cost < old_cost:
                 # We can get a better cost, lets update the neighbor
+                print(f"🔗 Found better path to neighbor, reducing cost from {old_cost} to {new_cost}")
                 neighbor.parent = new_node
                 neighbor.q = neighbor_details[2]
                 neighbor.interpolated_frames = neighbor_details[3]
@@ -428,7 +448,7 @@ class RRTStarIG(RRTStar):
     def handle_goal(self, new_node):
         if self.goal is None:
             return
-        if self.goal_seeking_radius is not None:
+        if self.goal_seeking_radius is not None and self.goal_node.parent is None:
             # Check if we are within the goal direct radius, if so we attempt to connect directly to the goal
             distance_to_goal = self.distance_to_goal(new_node.point)
             goal_direct_reached = distance_to_goal < self.goal_seeking_radius
