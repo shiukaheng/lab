@@ -113,7 +113,7 @@ def uniform_resample(points, n_samples):
 
     return resampled_points
 
-# @cache_results
+@cache_results
 def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100, n_bezier_samples=1000):
     print("🧮 Starting trajectory optimization")
     ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)

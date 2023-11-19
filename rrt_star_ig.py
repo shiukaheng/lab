@@ -252,13 +252,13 @@ class RRTStarIG(RRTStar):
         neighbors = sorted(neighbors, key=lambda n: np.linalg.norm(n.point - new_point))
 
         neighbors_in_reach = []
-        # Loop if we have not found enough neighbors to meet the max_neighbours requirement (or loop through all neighbors if max_neighbours is None)
+        # Loop if we have not found enough neighbors to meet the max_neighbors requirement (or loop through all neighbors if max_neighbors is None)
         for neighbor in neighbors:
-            print(f"Checking neighbor to see if we can reach it: {neighbor.point}")
+            # print(f"Checking neighbor to see if we can reach it: {neighbor.point}")
             expanded = (neighbor, self.check_edge_collision(neighbor.point, new_point, neighbor.q))
             if expanded[1][0] == False:
                 neighbors_in_reach.append(expanded)
-            if (self.max_neighbours is not None and len(neighbors_in_reach) > self.max_neighbours):
+            if (self.max_neighbors is not None and len(neighbors_in_reach) > self.max_neighbors):
                 break
 
         # COST CHECKING
