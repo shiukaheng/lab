@@ -76,7 +76,7 @@ class RRTStar(KDTree):
             # See if this is the best path to the goal
             old_cost = self.get_goal_cost()
             # See the new cost
-            new_cost = self.get_hypothetical_cost(node)
+            new_cost = self.get_hypothetical_cost(node, self.goal_node.point)
             if new_cost < old_cost:
                 # We have a better path to the goal, lets update it
                 self.goal_node.parent = node
@@ -125,11 +125,8 @@ class RRTStar(KDTree):
         else:
             return self.get_path(self.goal_node)[1]
         
-    def get_hypothetical_cost(self, node):
-        if self.goal_node is None:
-            return np.inf
-        else:
-            return np.linalg.norm(node.point - self.goal_node.point) + self.get_path(node)[1]
+    def get_hypothetical_cost(self, node, new_point):
+        return np.linalg.norm(node.point - new_point) + self.get_path(node)[1]
 
     def handle_goal(self, new_clamped_point, new_node, current_cost):
         if self.goal is None:
