@@ -94,8 +94,6 @@ class RRTStarIG(RRTStar):
             self.viz = viz
             self.q_init = q_init if q_init is not None else robot.q0.copy()
             self.initial_node.q = self.q_init
-            self.meshcat_paths = []
-            self.meshcast_best_paths = []
             self.shortcut_tolerance = shortcut_tolerance
             self.max_neighbours = max_neighbours
 
@@ -111,10 +109,9 @@ class RRTStarIG(RRTStar):
         # Plot a segment between start and end, and add the meshcat path to the segment array
         if self.viz is None:
             return
-        path = f"/path_{hash(start_node)}_{hash(end_node)}"
+        path = f"/rrt/path_{hash(start_node)}_{hash(end_node)}"
         # print(f"Start: {start.point}, End: {end.point}")
         self.plot_graph_segment(start_node.point, end_node.point, path)
-        self.meshcat_paths.append(path)
 
     def plot_graph_segment(self, start, end, path, color=0xff0000):
         self.viz[path].set_object(g.Line(g.PointsGeometry(np.array([start, end]).transpose()), g.MeshBasicMaterial(color=color, wireframeLinewidth=5)))
@@ -125,15 +122,11 @@ class RRTStarIG(RRTStar):
     def clear_explore_segment(self):
         self.viz["/explore"].delete()
 
-    def plot_expanded_path(self, expanded_path):
+    def plot_expanded_path(self, expanded_path, pathname="path", color=0x00ff00):
         if self.viz is None:
             return
-        # Clear existing best path
-        for path in self.meshcast_best_paths:
-            self.viz[path].delete()
         expanded_cube_path = [p[0] for p in expanded_path]
-        self.viz["/expanded_path"].set_object(g.Line(g.PointsGeometry(np.array(expanded_cube_path).transpose()), g.MeshBasicMaterial(color=0x00ff00, wireframeLinewidth=5)))
-        self.meshcast_best_paths.append("/expanded_path")
+        self.viz[f"/rrt/{pathname}"].set_object(g.Line(g.PointsGeometry(np.array(expanded_cube_path).transpose()), g.MeshBasicMaterial(color=0x00ff00, wireframeLinewidth=5)))
 
     def plot_best_goal_path(self):
         path, cost = self.get_path(self.goal_node)
@@ -147,12 +140,7 @@ class RRTStarIG(RRTStar):
         self.viz["/exploration_point"].delete()
 
     def clear_paths(self):
-        for path in self.meshcat_paths:
-            self.viz[path].delete()
-        for path in self.meshcast_best_paths:
-            self.viz[path].delete()
-        self.meshcat_paths = []
-        self.meshcast_best_paths = []
+        self.viz["/rrt"].delete()
         self.clear_explore_segment()
         self.clear_exploration_point()
 
