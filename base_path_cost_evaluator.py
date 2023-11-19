@@ -110,7 +110,7 @@ class BasePathCostEvaluator(metaclass=PathCostMeta):
     def compute_local_cost(self, path, window_size=5, stride=1):
         # Get list of indices
         window_centers, local_costs = self.compute_local_costs_non_interpolated(path, window_size, stride)
-        interp_func = interp1d(window_centers, local_costs, kind='linear', fill_value='extrapolate')
+        interp_func = interp1d(window_centers, local_costs, kind='cubic', fill_value='extrapolate')
         return interp_func(np.arange(len(path)))
 
     def compute_local_costs_non_interpolated(self, path, window_size, stride):

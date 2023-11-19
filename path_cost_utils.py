@@ -1,14 +1,17 @@
 import numpy as np
 
-def smoothness(array):
+def mean_curvature(array):
     if len(array) < 3:
         return 0
-    change = np.diff(array, axis=0)
-    unit_vectors_of_change = change / np.linalg.norm(change, axis=1)[:, None]
-    dot_products = np.sum(unit_vectors_of_change[1:] * unit_vectors_of_change[:-1], axis=1)
-    costs = (dot_products - 1) / -2
-    smoothness = np.mean(costs ** 2)
-    return smoothness
+    # First order difference
+    derivative = np.diff(array, axis=0)
+    # Second order difference
+    derivative2 = np.diff(derivative, axis=0)
+    # Magnitude of second order difference
+    derivative2_mag = np.linalg.norm(derivative2, axis=1)
+    # Mean curvature
+    curvature = np.mean(derivative2_mag)
+    return curvature
 
 def get_window_centers(window_size, stride, length_of_path):
     if length_of_path < window_size:
@@ -24,11 +27,3 @@ def get_windows(window_size, stride, length_of_path):
     for index in sampled_indices:
         windows.append(np.arange(index - window_size//2, index + window_size//2 + 1))
     return np.array(windows, dtype=int), sampled_indices
-
-def calc_local_cost(path, window_size, stride, cost_function):
-    windows, window_centers = get_windows(window_size, stride, len(path))
-    local_costs = []
-    for window in windows:
-        local_costs.append(cost_function(path[window]))
-    interp_func = interp1d(window_centers, local_costs, kind='cubic', fill_value='extrapolate')
-    return interp_func(np.arange(len(path)))
