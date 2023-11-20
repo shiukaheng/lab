@@ -18,7 +18,7 @@ class TrajectoryBezier:
         self.q_acc = self.q_pos.derivative(2)
 
 class TrajectoryOptimizer:
-    def __init__(self, robot, cube, viz, evaluation_points=100, iters=20):
+    def __init__(self, robot, cube, viz=None, evaluation_points=100, iters=20):
         self.robot = robot
         self.cube = cube
         self.viz = viz
@@ -116,11 +116,13 @@ class TrajectoryOptimizer:
             opt_traj = self.opt_params_to_trajectory(opt_params)
             self.plot_cube_path(opt_traj)
             time.sleep(1)
-            self.viz["/trajectory_optimizer"].delete()
+            if self.viz is not None:
+                self.viz["/trajectory_optimizer"].delete()
             return opt_traj
         except Exception as e:
             # Clear the meshcat path
-            self.viz["/trajectory_optimizer"].delete()
+            if self.viz is not None:
+                self.viz["/trajectory_optimizer"].delete()
             raise e
         
     def calc_grip_transform(self, q):
@@ -145,7 +147,8 @@ class TrajectoryOptimizer:
         # self.viz[self.meshcat_path].set_object(g.Line(g.PointsGeometry(np.array(cube_path).transpose()), g.MeshBasicMaterial(color=0x0000ff)))
         bezier_path = Bezier(cube_path, t_max=1)
         samples = np.linspace(0, 1, bezier_samples)
-        self.viz[f"/trajectory_optimizer/{path_name}"].set_object(g.Line(g.PointsGeometry(np.array([bezier_path(t) for t in samples]).transpose()), g.MeshBasicMaterial(color=color)))
+        if self.viz is not None:
+            self.viz[f"/trajectory_optimizer/{path_name}"].set_object(g.Line(g.PointsGeometry(np.array([bezier_path(t) for t in samples]).transpose()), g.MeshBasicMaterial(color=color)))
 
     def cube_path_distance(self, a, b):
         return np.linalg.norm(np.array(a) - np.array(b))

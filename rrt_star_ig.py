@@ -233,7 +233,7 @@ class RRTStarIG(RRTStar):
             old_cost = self.get_node_cost(neighbor)
             if new_cost < old_cost:
                 # We can get a better cost, lets update the neighbor
-                print(f"🔗 Found better path to neighbor, reducing cost from {old_cost} to {new_cost}")
+                # print(f"🔗 Found better path to neighbor, reducing cost from {old_cost} to {new_cost}")
                 neighbor.parent = new_node
                 neighbor.q = neighbor_details[2]
                 neighbor.interpolated_frames = neighbor_details[3]

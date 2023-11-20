@@ -113,7 +113,7 @@ def uniform_resample(points, n_samples):
 
     return resampled_points
 
-@cache_results
+# @cache_results
 def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100, n_bezier_samples=1000):
     print("🧮 Starting trajectory optimization")
     ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
@@ -121,6 +121,52 @@ def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, total_t
     opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
     opt_pose_waypoints = opt.optimize(ref_lin_traj)
     pq = Bezier(opt_pose_waypoints, t_max=1)
+    # Sample the Bezier curve
+    pose_waypoints = sample_bezier_with_velocity(pq, create_linear_velocity_profile(total_time, ramp_time, n_bezier_samples), n_bezier_samples)
+    # Create another bezier curve from the sampled points
+    pq = Bezier(pose_waypoints, t_max=total_time) 
+    vq = pq.derivative(1)
+    aq = pq.derivative(2)
+    
+    return pq, vq, aq
+
+def create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100, n_bezier_samples=1000):
+    print("🧮 Starting trajectory optimization")
+    ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
+    print("✅ Created initial trajectory")
+    opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
+    opt_pose_waypoints = opt.optimize(ref_lin_traj)
+    pq = Bezier(opt_pose_waypoints, t_max=1)
+    # Sample the Bezier curve
+    pose_waypoints = sample_bezier_with_velocity(pq, create_linear_velocity_profile(total_time, ramp_time, n_bezier_samples), n_bezier_samples)
+    # Create another bezier curve from the sampled points
+    pq = Bezier(pose_waypoints, t_max=total_time) 
+    vq = pq.derivative(1)
+    aq = pq.derivative(2)
+    
+    return pq, vq, aq
+
+def create_optimized_bezier_trajectory_b(robot, cube, viz, pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_cost_samples=100, n_bezier_samples=1000):
+    print("🧮 Starting trajectory optimization")
+    ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
+    pqn = Bezier(ref_lin_traj, t_max=1)
+    print("✅ Created initial trajectory")
+    opt = TrajectoryOptimizer(robot, cube, viz, evaluation_points=n_bezier_cost_samples)
+    opt_pose_waypoints = opt.optimize(ref_lin_traj)
+    pq = Bezier(opt_pose_waypoints, t_max=1)
+    # Sample the Bezier curve
+    pose_waypoints = sample_bezier_with_velocity(pq, create_linear_velocity_profile(total_time, ramp_time, n_bezier_samples), n_bezier_samples)
+    # Create another bezier curve from the sampled points
+    pq = Bezier(pose_waypoints, t_max=total_time) 
+    vq = pq.derivative(1)
+    aq = pq.derivative(2)
+    
+    return pq, pqn
+
+def create_naive_bezier_trajectory_b(pose_waypoints, total_time, ramp_time, n_bezier_control_points=15, n_bezier_samples=1000):
+    print("🧮 Starting trajectory optimization")
+    ref_lin_traj = uniform_resample(np.array(pose_waypoints), n_bezier_control_points)
+    pq = Bezier(ref_lin_traj, t_max=1)
     # Sample the Bezier curve
     pose_waypoints = sample_bezier_with_velocity(pq, create_linear_velocity_profile(total_time, ramp_time, n_bezier_samples), n_bezier_samples)
     # Create another bezier curve from the sampled points

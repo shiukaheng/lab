@@ -14,6 +14,7 @@ import pinocchio as pin
 
 from control_utils import *
 from trajectory_optimizer import TrajectoryOptimizer
+from trajectory_plots import trajectory_analysis
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
 Kp = 6000.               # proportional gain (P of PD)
@@ -56,27 +57,19 @@ if __name__ == "__main__":
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET    
     from inverse_geometry import computeqgrasppose
     from path import computepathwithcubepos, displaypath
-    
-    q0,successinit = computeqgrasppose(robot, robot.q0, cube, CUBE_PLACEMENT, None)
-    qe,successend = computeqgrasppose(robot, robot.q0, cube, CUBE_PLACEMENT_TARGET,  None)
-    path = computepathwithcubepos(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, robot, cube, viz)
-    cube_waypoints, pose_waypoints = zip(*path)
 
-    robot, sim, cube, viz = setupwithpybulletandmeshcat()
+    q0,successinit = computeqgrasppose(robot, robot.q0, cube, CUBE_PLACEMENT, None)
 
     tcur = 0.
     total_time = 3.
+    
+    trajs = create_optimized_bezier_trajectory()
+    
+    # Sample the trajectory
+    bezier_samples = np.linspace(0, total_time, 1000)
+    q = []
+    for t in bezier_samples:
+        q.append(trajs[0](t))
+    q = np.array(q)
 
-    # Create a trajectory
-    # trajs = create_naive_bezier_trajectory(pose_waypoints, cube_waypoints, total_time=total_time, ramp_time=0.5, n_samples=1000)
-    trajs = create_optimized_bezier_trajectory(robot, cube, viz, pose_waypoints,
-                                               total_time=total_time, 
-                                               ramp_time=0.5, 
-                                               n_bezier_control_points=10, 
-                                               n_bezier_cost_samples=50)
-
-    # sim.setqsim(trajs[0](0))
-
-    # while tcur < total_time:
-    #     rununtil(controllaw, DT, sim, robot, trajs, tcur)
-    #     tcur += DT
+    trajectory_analysis(q0, q)

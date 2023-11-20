@@ -23,11 +23,11 @@ def computepath(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, vi
         goal=cubeplacementqgoal.translation,
         q_init=qinit,
         collision_samples=5,
-    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=50)
+    ).solve(max_iterations=100, post_goal_iterations=0, shortcut_iterations=30)
     return [path[1] for path in path]
 
 # @cache_results
-def computepathwithcubepos(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz, max_iterations=100, post_goal_iterations=0, shortcut_iterations=0, collision_samples=5, step_size=0.2, neighborhood_radius=0.4, max_neighbors=10):
+def computepathwithcubepos(qinit,qgoal,cubeplacementq0, cubeplacementqgoal, robot, cube, viz, max_iterations=100, post_goal_iterations=0, shortcut_iterations=30, collision_samples=5, step_size=0.2, neighborhood_radius=0.4, max_neighbors=10):
     path = RRTStarIG(
         robot, cube, viz,
         initial=cubeplacementq0.translation,
